@@ -1,5 +1,3 @@
-Test
-
 
 # Crossroad
 
@@ -16,7 +14,6 @@ A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic dat
 ## Installation
 
 ### Using pip
-
 
 ## Contributors
 
