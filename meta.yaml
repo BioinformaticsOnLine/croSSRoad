@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/pranjalpruthi/crossroad/archive/v{{ version }}.tar.gz
-  sha256: # Add the SHA256 hash here
+  sha256: 024a3b8617418f7100c398bcdc125e0cf6f98721ffcb8a9ffba721e024f37978 
 
 build:
   number: 0
