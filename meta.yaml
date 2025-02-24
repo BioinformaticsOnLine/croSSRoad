@@ -1,0 +1,55 @@
+{% set name = "crossroad" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/pranjalpruthi/crossroad/archive/v{{ version }}.tar.gz
+  sha256: # You'll need to add this after creating the release
+
+build:
+  number: 0
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv
+  entry_points:
+    - crossroad = crossroad.cli.main:main
+
+requirements:
+  host:
+    - python >=3.8
+    - pip
+  run:
+    - python >=3.8
+    - fastapi
+    - uvicorn
+    - python-multipart
+    - pandas
+    - pydantic
+    - requests
+    - seqkit
+    - seqtk
+    - bedtools
+
+test:
+  imports:
+    - crossroad
+  commands:
+    - crossroad --help
+
+about:
+  home: https://github.com/pranjalpruthi/crossroad
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: 'A tool for analyzing SSRs in genomic data'
+  description: |
+    Crossroad is a comprehensive tool for analyzing Simple Sequence Repeats (SSRs) 
+    in genomic data, developed at CSIR-IGIB.
+  doc_url: https://github.com/pranjalpruthi/crossroad
+  dev_url: https://github.com/pranjalpruthi/crossroad
+
+extra:
+  recipe-maintainers:
+    - pranjalpruthi 
