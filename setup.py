@@ -4,13 +4,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="crossroad-cli",  # This is the PyPI package name
-    version="0.1.0",
-    packages=find_packages(),  # This will automatically find all packages
+    name="crossroad-cli",
+    version="0.1.2",
+    packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],  # Explicitly list packages
+    package_dir={"": "."},  # Root directory for packages
     package_data={
-        'crossroad': ['**/*'],  # Include all files in the crossroad directory
+        'crossroad': ['**/*.py'],  # Include all Python files
     },
-    include_package_data=True,  # Include other non-Python files
+    include_package_data=True,
     install_requires=[
         "fastapi",
         "uvicorn",
@@ -25,7 +26,7 @@ setup(
         ],
     },
     author="Pranjal Pruthi, Preeti Agarwal",
-    author_email="your.email@igib.res.in",  # Add your institutional email
+    author_email="your.email@igib.res.in",
     description="A tool for analyzing SSRs in genomic data",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -34,16 +35,6 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-        "Topic :: Scientific/Engineering :: Bio-Informatics",
-        "Development Status :: 4 - Beta",
     ],
     python_requires=">=3.8",
-    # External tool dependencies
-    extras_require={
-        'external': [
-            'seqkit',
-            'seqtk',
-            'bedtools'
-        ]
-    }
 )
