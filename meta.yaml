@@ -42,9 +42,14 @@ test:
     - crossroad.core
   commands:
     - crossroad --help
-    - seqkit --help
+    # Remove or comment out these tests since they're external dependencies
+    # - seqkit --help
+    # - seqtk
+    # - bedtools --help
+  requires:
+    - seqkit
     - seqtk
-    - bedtools --help
+    - bedtools
 
 about:
   home: https://github.com/pranjalpruthi/crossroad
