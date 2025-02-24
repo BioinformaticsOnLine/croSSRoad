@@ -4,9 +4,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="crossroad-cli",  # for PyPI since crossroad is taken
+    name="crossroad-cli",  # This is the PyPI package name
     version="0.1.0",
-    packages=find_packages(),
+    packages=find_packages(),  # This will automatically find all packages
+    package_data={
+        'crossroad': ['**/*'],  # Include all files in the crossroad directory
+    },
+    include_package_data=True,  # Include other non-Python files
     install_requires=[
         "fastapi",
         "uvicorn",

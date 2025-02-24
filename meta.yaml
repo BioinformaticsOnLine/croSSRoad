@@ -7,12 +7,12 @@ package:
 
 source:
   url: https://github.com/pranjalpruthi/crossroad/archive/v{{ version }}.tar.gz
-  sha256: 024a3b8617418f7100c398bcdc125e0cf6f98721ffcb8a9ffba721e024f37978 
+  sha256: 024a3b8617418f7100c398bcdc125e0cf6f98721ffcb8a9ffba721e024f37978
 
 build:
   number: 0
   noarch: python
-  script: {{ PYTHON }} -m pip install . -vv
+  script: {{ PYTHON }} -m pip install . --no-deps -vv
   entry_points:
     - crossroad = crossroad.cli.main:main
 
@@ -20,6 +20,7 @@ requirements:
   host:
     - python >=3.8
     - pip
+    - setuptools
   run:
     - python >=3.8
     - fastapi
@@ -36,6 +37,9 @@ requirements:
 test:
   imports:
     - crossroad
+    - crossroad.cli
+    - crossroad.api
+    - crossroad.core
   commands:
     - crossroad --help
     - seqkit --help
