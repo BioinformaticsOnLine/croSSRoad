@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/pranjalpruthi/crossroad/archive/v{{ version }}.tar.gz
-  sha256: # You'll need to add this after creating the release
+  sha256: # Add the SHA256 hash here
 
 build:
   number: 0
@@ -28,6 +28,7 @@ requirements:
     - pandas
     - pydantic
     - requests
+    # Bioconda dependencies
     - seqkit
     - seqtk
     - bedtools
@@ -37,6 +38,9 @@ test:
     - crossroad
   commands:
     - crossroad --help
+    - seqkit --help
+    - seqtk
+    - bedtools --help
 
 about:
   home: https://github.com/pranjalpruthi/crossroad
@@ -52,4 +56,4 @@ about:
 
 extra:
   recipe-maintainers:
-    - pranjalpruthi 
+    - pranjalpruthi
