@@ -1,5 +1,5 @@
 {% set name = "crossroad" %}
-{% set version = "0.1.1" %}
+{% set version = "0.1.2" %}
 
 package:
   name: {{ name|lower }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/pranjalpruthi/crossroad/archive/v{{ version }}.tar.gz
-  sha256: 024a3b8617418f7100c398bcdc125e0cf6f98721ffcb8a9ffba721e024f37978
+  sha256: e16787a3ceb8b0f9ca84aec881b7adef2e48a10313fd298c9dc8161367c47d5a 
 
 build:
   number: 0
