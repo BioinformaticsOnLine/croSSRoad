@@ -1,7 +1,6 @@
+# Crossroad *fast*API and CLI 
 
-# Crossroad
-
-A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic data, developed at CSIR-IGIB.
+A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic data,
 
 ## Features
 
@@ -17,9 +16,10 @@ A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic dat
 
 ## Contributors
 
-- Pranjal Pruthi (Project Scientist, CSIR IGIB)
 - Dr. Preeti Agarwal (PhD & Senior Research Fellow)
 - Dr. Jitendra Narayan (Principal Investigator)
+- Pranjal Pruthi (Project Scientist, CSIR IGIB)
+
 
 ## Institution
 
