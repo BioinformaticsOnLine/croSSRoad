@@ -12,18 +12,18 @@ source:
 
 build:
   number: 0
-  noarch: python
   script: {{ PYTHON }} -m pip install . --no-deps -vv
   entry_points:
     - crossroad = crossroad.cli.main:main
+  skip: True  # [win]  <-- Keep this
 
 requirements:
   host:
-    - python {{ python_min }}
+    - python {{ python_min }}  # Keep this with version constraint
     - pip
     - setuptools
   run:
-    - python >={{ python_min }}
+    - python  # Remove version constraint here
     - fastapi
     - uvicorn
     - python-multipart
@@ -43,7 +43,7 @@ test:
   commands:
     - crossroad --help
   requires:
-    - python {{ python_min }}
+    - python  # Remove version constraint here
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
@@ -63,6 +63,3 @@ about:
 extra:
   recipe-maintainers:
     - pranjalpruthi
-    
-build:
-  skip: True  # [win]
