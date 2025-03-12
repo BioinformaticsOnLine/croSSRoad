@@ -34,6 +34,8 @@ def filter_hotspot_records(all_records_df, ssrcombo_file, min_repeat_count=1, mi
     try:
         if logger:
             logger.info(f"Records before filtering: {len(all_records_df)}")
+            logger.info(f"Using min_repeat_count: {min_repeat_count}")
+            logger.info(f"Using min_genome_count: {min_genome_count}")
         
         # Get the total unique genomeID count from the original SSR combo file
         original_df = pd.read_csv(ssrcombo_file, sep='\t')
@@ -76,10 +78,10 @@ def filter_hotspot_records(all_records_df, ssrcombo_file, min_repeat_count=1, mi
         all_records_df['repeat_count'] = pd.to_numeric(all_records_df['repeat_count'], errors='coerce').fillna(0).astype('int64')
         all_records_df['genomeID_count'] = pd.to_numeric(all_records_df['genomeID_count'], errors='coerce').fillna(0).astype('int64')
         
-        # Filter rows with repeat_count > 1 and genomeID_count > 5
+        # Filter rows with repeat_count and genomeID_count based on parameters
         filtered_count = all_records_df[
-            (all_records_df['repeat_count'] > min_repeat_count) & 
-            (all_records_df['genomeID_count'] > min_genome_count)
+            (all_records_df['repeat_count'] >= min_repeat_count) &
+            (all_records_df['genomeID_count'] >= min_genome_count)
         ]
         
         # Combine both filters and remove duplicates
@@ -181,6 +183,8 @@ def main(args=None):
     # Get filtering parameters with defaults
     min_repeat_count = getattr(args, 'min_repeat_count', 1)
     min_genome_count = getattr(args, 'min_genome_count', 4)
+    
+    logger.info(f"Using filtering parameters: min_repeat_count={min_repeat_count}, min_genome_count={min_genome_count}")
     
     # If args is not provided, parse from command line
     if args is None:
