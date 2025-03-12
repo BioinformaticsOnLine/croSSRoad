@@ -33,6 +33,7 @@ requirements:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
+    - perf_ssr
 
 test:
   imports:
@@ -47,6 +48,7 @@ test:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
+    - perf_ssr
 
 about:
   home: https://github.com/pranjalpruthi/crossroad
