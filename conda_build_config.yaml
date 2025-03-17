@@ -7,3 +7,5 @@ python:
   - 3.11
 package_name:
   - crossroad
+pip_dependencies:
+  - perf_ssr

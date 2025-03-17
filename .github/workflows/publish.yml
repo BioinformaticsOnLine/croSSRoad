@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: pypi  # This must match the environment name in PyPI trusted publisher
       url: https://pypi.org/p/crossroad-cli
     permissions:
       id-token: write

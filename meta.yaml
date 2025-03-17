@@ -12,7 +12,9 @@ source:
 
 build:
   number: 0
-  script: {{ PYTHON }} -m pip install . --no-deps -vv
+  script: |
+    {{ PYTHON }} -m pip install perf_ssr
+    {{ PYTHON }} -m pip install . --no-deps -vv
   entry_points:
     - crossroad = crossroad.cli.main:main
   skip: True  # [win]  <-- Keep this
@@ -33,7 +35,6 @@ requirements:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - perf_ssr
 
 test:
   imports:
@@ -48,7 +49,6 @@ test:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - perf_ssr
 
 about:
   home: https://github.com/pranjalpruthi/crossroad
