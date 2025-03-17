@@ -40,3 +40,4 @@ ENV/
 *.swo
 EOL
 
+.testing/

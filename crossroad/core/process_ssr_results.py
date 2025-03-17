@@ -5,8 +5,8 @@ import pandas as pd
 import time
 import logging
 
-def group_ssr_records(ssrcombo_file, logger):
-    """Group SSR records by motif and gene, combining other fields with ':'."""
+def group_ssr_records(ssrcombo_file, min_repeat_count, min_genome_count, logger):
+    """Group SSR records by motif and gene, combining other fields with ':' and applying filters."""
     # Read the input data into a DataFrame
     df = pd.read_csv(ssrcombo_file, sep='\t')
     logger.info(f"Total input records: {len(df)}")
@@ -18,7 +18,6 @@ def group_ssr_records(ssrcombo_file, logger):
     
     # Group by MOTIF and GENE
     grouped_data = selected_columns.groupby(['motif', 'gene'], as_index=False)
-    logger.info(f"Unique motif-gene combinations: {len(grouped_data)}")
     
     # Merge other columns and join unique values with ':'
     merged_data = grouped_data.agg(lambda x: ': '.join(x.astype(str).unique()))
@@ -27,15 +26,21 @@ def group_ssr_records(ssrcombo_file, logger):
     merged_data['repeat_count'] = merged_data['repeat'].str.count(':') + 1
     merged_data['genomeID_count'] = merged_data['genomeID'].str.count(':') + 1
     
-    return merged_data
+    # Apply filtering based on counts
+    filtered_data = merged_data[
+        (merged_data['repeat_count'] >= min_repeat_count) &
+        (merged_data['genomeID_count'] >= min_genome_count)
+    ]
+    
+    logger.info(f"Records after filtering (repeat_count >= {min_repeat_count}, genomeID_count >= {min_genome_count}): {len(filtered_data)}")
+    
+    return filtered_data
 
 def filter_hotspot_records(all_records_df, ssrcombo_file, min_repeat_count=1, min_genome_count=4, logger=None):
-    """Filter records based on cyclical variation and count criteria."""
+    """Filter records based on cyclical variation."""
     try:
         if logger:
-            logger.info(f"Records before filtering: {len(all_records_df)}")
-            logger.info(f"Using min_repeat_count: {min_repeat_count}")
-            logger.info(f"Using min_genome_count: {min_genome_count}")
+            logger.info(f"Records before variation filtering: {len(all_records_df)}")
         
         # Get the total unique genomeID count from the original SSR combo file
         original_df = pd.read_csv(ssrcombo_file, sep='\t')
@@ -53,48 +58,26 @@ def filter_hotspot_records(all_records_df, ssrcombo_file, min_repeat_count=1, mi
                 variations.append(variation)
             return ', '.join(sorted(variations))
         
-        # Ensure columns are the right type before processing
-        all_records_df['motif'] = all_records_df['motif'].astype(str)
-        all_records_df['gene'] = all_records_df['gene'].astype(str)
-        all_records_df['repeat'] = all_records_df['repeat'].astype(str)
-        
         # Create motif variations and concatenated key
         all_records_df['motif_variations'] = all_records_df['motif'].apply(find_variations)
         all_records_df['concat_column'] = all_records_df['gene'] + '_' + all_records_df['motif_variations']
         
-        # Group by concat_column
+        # Group by concat_column and filter for multiple records
         grouped = all_records_df.groupby('concat_column')
-
-        
-        # Filter groups with multiple records
         filtered_groups = grouped.filter(lambda x: len(x) > 1)
         
-        # Add new filter for genomeID_count using the calculated total
-        valid_groups = filtered_groups.groupby('concat_column').filter(lambda x: x['genomeID_count'].sum() <= total_unique_genomes)
-        
-
-        
-        # Ensure numeric columns are properly converted
-        all_records_df['repeat_count'] = pd.to_numeric(all_records_df['repeat_count'], errors='coerce').fillna(0).astype('int64')
-        all_records_df['genomeID_count'] = pd.to_numeric(all_records_df['genomeID_count'], errors='coerce').fillna(0).astype('int64')
-        
-        # Filter rows with repeat_count and genomeID_count based on parameters
-        filtered_count = all_records_df[
-            (all_records_df['repeat_count'] >= min_repeat_count) &
-            (all_records_df['genomeID_count'] >= min_genome_count)
-        ]
-        
-        # Combine both filters and remove duplicates
-        if valid_groups is not None and not valid_groups.empty:
-            result = pd.concat([valid_groups, filtered_count]).drop_duplicates()
-        else:
-            result = filtered_count
+        # Add filter for genomeID_count using the calculated total
+        valid_groups = filtered_groups.groupby('concat_column').filter(
+            lambda x: x['genomeID_count'].sum() <= total_unique_genomes
+        )
         
         # Drop temporary columns
-        result = result.drop(columns=['motif_variations', 'concat_column'])
-        
+        if valid_groups is not None and not valid_groups.empty:
+            result = valid_groups.drop(columns=['motif_variations', 'concat_column'])
+        else:
+            result = pd.DataFrame(columns=all_records_df.columns)
+            
         logger.info(f"Final filtered records: {len(result)}")
-        
         return result
         
     except Exception as e:
@@ -242,7 +225,12 @@ def main(args=None):
     else:
         # Original flow when no reference is provided
         logger.info("\nGrouping SSR combo records ...")
-        all_records_df = group_ssr_records(args.ssrcombo, logger)
+        all_records_df = group_ssr_records(
+            args.ssrcombo,
+            min_repeat_count,
+            min_genome_count,
+            logger
+        )
         all_records_df.to_csv(all_vars_file, index=False)
         logger.info(f"All variations table written to: {all_vars_file}")
 
