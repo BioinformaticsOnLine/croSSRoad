@@ -6,19 +6,21 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="crossroad-cli",
     version="0.1.3",
-    packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],  # Explicitly list packages
-    package_dir={"": "."},  # Root directory for packages
+    packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
+    package_dir={"": "."},
     package_data={
-        'crossroad': ['**/*.py'],  # Include all Python files
+        'crossroad': ['**/*.py'],
     },
     include_package_data=True,
+    license="MIT",  # Only one license parameter here
     install_requires=[
         "fastapi",
         "uvicorn",
         "python-multipart",
         "pandas",
         "pydantic",
-        "requests"
+        "requests",
+        "perf_ssr",
     ],
     entry_points={
         "console_scripts": [

@@ -54,7 +54,6 @@ about:
   home: https://github.com/pranjalpruthi/crossroad
   license: MIT
   license_family: MIT
-  license_file: LICENSE
   summary: 'A tool for analyzing SSRs in genomic data'
   description: |
     Crossroad is a comprehensive tool for analyzing Simple Sequence Repeats (SSRs) 
