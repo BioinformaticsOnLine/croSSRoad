@@ -47,7 +47,7 @@ If you use Crossroad in your research, please cite:
 #### Each file in simple terms:
 
 
-#####hssr_data.csv:
+##### hssr_data.csv:
 - Final output containing hotspot SSRs
 - With reference: Only includes variations different from reference
 - Without reference: Includes all variations meeting criteria
