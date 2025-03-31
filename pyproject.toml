@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crossroad-cli"
+version = "0.1.4"
+description = "A tool for analyzing SSRs in genomic data"
+readme = "README.md"
+authors = [
+    { name = "Pranjal Pruthi, Preeti Agarwal", email = "jnlab.igib@gmail.com" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    "pandas",
+    "pydantic",
+    "requests",
+    "perf_ssr",
+]
+
+[project.scripts]
+crossroad = "crossroad.cli.main:main"
+
+[tool.setuptools]
+packages = ["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"]
+package-dir = { "" = "." }
+
+[tool.setuptools.package-data]
+crossroad = ["**/*.py"] 

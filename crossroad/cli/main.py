@@ -6,22 +6,7 @@ import time
 from datetime import datetime
 
 from crossroad.core import m2, gc2, process_ssr_results
-
-def setup_logging(job_id):
-    """Setup logging configuration"""
-    log_dir = os.path.join("jobOut", job_id)
-    log_file = os.path.join(log_dir, f"{job_id}.log")
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-    return logging.getLogger(job_id)
+from crossroad.core.logger import setup_logging
 
 def main():
     parser = argparse.ArgumentParser(
@@ -62,16 +47,14 @@ def main():
 
     # Create job ID and setup directories
     job_id = f"job_{int(time.time() * 1000)}"
-    logger = setup_logging(job_id)
-
-    # Log start of job
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"Job ID: {job_id} - Timestamp: {timestamp}")
-    logger.info("Job started")
+    job_dir = os.path.abspath(os.path.join("jobOut", job_id))
+    logger = setup_logging(job_id, job_dir)
+    
+    # Add source identification
+    logger.info("Running in CLI mode")
 
     try:
         # Create directory structure
-        job_dir = os.path.abspath(os.path.join("jobOut", job_id))
         output_dir = os.path.join(job_dir, "output")
         main_dir = os.path.join(output_dir, "main")
         tmp_dir = os.path.join(output_dir, "tmp")
@@ -121,6 +104,7 @@ def main():
                 min_repeat_count=args.min_repeat_count,
                 min_genome_count=args.min_genome_count
             )
+            
             process_ssr_results.main(ssr_args)
 
         logger.info("Analysis completed successfully")

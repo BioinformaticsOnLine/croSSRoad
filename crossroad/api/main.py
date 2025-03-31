@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import argparse
 import logging
 from datetime import datetime
+from crossroad.core.logger import setup_logging
 
 # Update imports to use absolute imports from core
 from crossroad.core import m2
@@ -46,43 +47,29 @@ async def analyze_ssr(
     perf_params: Optional[str] = Form(None),
     flanks: Optional[bool] = Form(False)
 ):
-    # Create base job directory and job ID
+    # Create job ID and directories
     job_id = f"job_{int(time.time() * 1000)}"
     job_dir = os.path.abspath(os.path.join("jobOut", job_id))
     
-    # Set up logging for this job
-    log_file = os.path.join(job_dir, f"{job_id}.log")
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    # Set up logging using the centralized logger
+    logger = setup_logging(job_id, job_dir)
     
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()  # This will still print to console
-        ]
-    )
-    logger = logging.getLogger(job_id)
-    
-    # Log initial job information
-    client_ip = request.client.host
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"Job ID: {job_id} - Timestamp: {timestamp} - Client IP: {client_ip}")  # Console only
-    logger.info(f"Job started - Client IP: {client_ip}")
-    
-    # Create directory structure
-    input_dir = os.path.join(job_dir, "input")
-    output_dir = os.path.join(job_dir, "output")
-    main_dir = os.path.join(output_dir, "main")
-    tmp_dir = os.path.join(output_dir, "tmp")
-    
-    # Create all necessary directories
-    os.makedirs(input_dir, exist_ok=True)
-    os.makedirs(main_dir, exist_ok=True)
-    os.makedirs(tmp_dir, exist_ok=True)
+    # Add source identification
+    logger.info("Running in API mode")
+    logger.info(f"Client IP: {request.client.host}")
     
     try:
+        # Create directory structure
+        input_dir = os.path.join(job_dir, "input")
+        output_dir = os.path.join(job_dir, "output")
+        main_dir = os.path.join(output_dir, "main")
+        tmp_dir = os.path.join(output_dir, "tmp")
+        
+        # Create all necessary directories
+        os.makedirs(input_dir, exist_ok=True)
+        os.makedirs(main_dir, exist_ok=True)
+        os.makedirs(tmp_dir, exist_ok=True)
+        
         # Save input files
         fasta_path = os.path.join(input_dir, "all_genome.fa")
         cat_path = os.path.join(input_dir, "genome_categories.tsv")

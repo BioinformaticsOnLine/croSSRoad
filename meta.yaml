@@ -1,5 +1,5 @@
 {% set name = "crossroad" %}
-{% set version = "0.1.3" %}
+{% set version = "0.1.4" %}
 {% set python_min = "3.8" %}
 
 package:
@@ -7,25 +7,33 @@ package:
   version: {{ version }}
 
 source:
-  url: https://files.pythonhosted.org/packages/38/f5/7d87fdf2822ce8cdfe6af4bb95aef4b9b5116838e56e80d6edffc50bfb2a/crossroad_cli-0.1.2.tar.gz
-  sha256: 4ec69562865fe91bbff3072137c0e4cb4efb1741ce27ee8f4f29260c39590802
+  url: https://files.pythonhosted.org/packages/b2/15/2036298fbb7392c8938632a973e3e63bda247ce96b3069017d33e7d9662a/crossroad_cli-0.1.4.tar.gz
+  sha256: 21a02bfd9ea43743c00fa3377fa83e2397cbb00799866e47d5f21cfa432e20bd
 
 build:
+  noarch: python  # Add this line to make it platform-independent
   number: 0
   script: |
-    {{ PYTHON }} -m pip install perf_ssr
-    {{ PYTHON }} -m pip install . --no-deps -vv
+    $PYTHON -m pip install . --no-deps --ignore-installed --no-cache-dir
   entry_points:
     - crossroad = crossroad.cli.main:main
-  skip: True  # [win]  <-- Keep this
+  preserve_egg_dir: False
+  skip: True  # [win]  # You can actually remove this line since noarch handles platform skipping
 
 requirements:
   host:
-    - python {{ python_min }}  # Keep this with version constraint
+    - python {{ python_min }}
     - pip
     - setuptools
+    # Add build-time dependencies that match setup.py
+    - fastapi
+    - uvicorn
+    - python-multipart
+    - pandas
+    - pydantic
+    - requests
   run:
-    - python  # Remove version constraint here
+    - python
     - fastapi
     - uvicorn
     - python-multipart
@@ -35,6 +43,9 @@ requirements:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
+    - bioconda::minimap2
+    - pranjalpruthi::perf_ssr
+    - pip
 
 test:
   imports:
@@ -45,10 +56,11 @@ test:
   commands:
     - crossroad --help
   requires:
-    - python  # Remove version constraint here
+    - python
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
+    - bioconda::minimap2
 
 about:
   home: https://github.com/pranjalpruthi/crossroad

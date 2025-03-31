@@ -19,12 +19,15 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+info.txt
 
 # Directories
 jobOut/
 output/
 tmp/
-
+crossroad/testing/
+crossroad_cli.egg-info/
+venv_dev/
 # OS
 .DS_Store
 .env
@@ -40,4 +43,3 @@ ENV/
 *.swo
 EOL
 
-.testing/
