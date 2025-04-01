@@ -121,7 +121,7 @@ def main(args=None):
     single_record_df = all_records_df[all_records_df['concat_column'].isin(single_record_groups)]
     filtered_single_df = single_record_df[
         (single_record_df['genomeID_count'] > args.min_genome_count) &  # Changed from >= to >
-        (single_record_df['repeat_count'] > 1)
+        (single_record_df['repeat_count'] > args.min_repeat_count)
     ]
     
     # Combine both
