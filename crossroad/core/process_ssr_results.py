@@ -70,17 +70,37 @@ def main(args=None):
 
     # Read input data
     ssrcombo_df = pd.read_csv(args.ssrcombo, sep='\t')
+    
+    total_unique_genomes = ssrcombo_df['genomeID'].nunique()
+    logger.info(f"Total unique genomes found: {total_unique_genomes}")
 
     if args.reference:
         logger.info(f"\nComparing against reference genome {args.reference}")
+        # First, extract reference genome rows
+        reference_rows = ssrcombo_df[ssrcombo_df['genomeID'] == args.reference]
+        
+        # Then get the rows with different repeats
         different_df = find_different_repeats(ssrcombo_df, args.reference)
-        if not different_df.empty:
+        
+        if not different_df.empty or not reference_rows.empty:
+            # Combine reference rows with different rows
+            combined_df = pd.concat([reference_rows, different_df]).drop_duplicates()
+            
+            # Sort by gene and loci for better organization
+            combined_df = combined_df.sort_values(['gene', 'loci'])
+            
+            # Save the combined data
             files['ref_ssr'] = os.path.join(out_dir, "ref_ssr_genecombo.csv")
-            different_df.to_csv(files['ref_ssr'], index=False)
-            logger.info(f"Found {len(different_df)} records with different repeats")
-            all_records_df = group_records(different_df, logger)
+            combined_df.to_csv(files['ref_ssr'], index=False)
+            
+            logger.info(f"Found {len(reference_rows)} rows from reference genome")
+            logger.info(f"Found {len(different_df)} rows with different repeats")
+            logger.info(f"Total rows in combined file: {len(combined_df)}")
+            
+            # Continue with the rest of the process using just the different rows
+            all_records_df = group_records(combined_df, logger)
         else:
-            logger.info("No different records found")
+            logger.info("No records found")
             return files
     else:
         all_records_df = group_records(ssrcombo_df, logger)
@@ -95,47 +115,90 @@ def main(args=None):
     # Generate hotspots
     logger.info("\nFiltering mutational hotspot records ...")
     all_records_df['motif_variations'] = all_records_df['motif'].apply(find_variations)
-    all_records_df['concat_column'] = all_records_df['gene'] + '_' + all_records_df['motif_variations']
+    all_records_df['concat_column'] = all_records_df['gene'].astype(str) + '_' + all_records_df['motif_variations'].astype(str)
     
     # Find group sizes
     group_sizes = all_records_df.groupby('concat_column').size()
     
     # Groups with multiple records
     multiple_record_groups = group_sizes[group_sizes > 1].index
+
     hotspot_df = all_records_df[all_records_df['concat_column'].isin(multiple_record_groups)]
     
-    # Valid groups where at least one record has genomeID_count >= min_genome_count
-    valid_groups = hotspot_df.groupby('concat_column').apply(
-        lambda g: g['genomeID_count'].max() >= args.min_genome_count
-    )
-    valid_groups = valid_groups[valid_groups].index
-    
-    # Include all records from valid groups where repeat_count >= min_repeat_count
-    filtered_hotspot_df = hotspot_df[
-        hotspot_df['concat_column'].isin(valid_groups) &
-        (hotspot_df['repeat_count'] >= args.min_repeat_count)
-    ]
-    
+
+
     # Include single-record groups with stricter criteria
-    single_record_groups = group_sizes[group_sizes == 1].index
-    single_record_df = all_records_df[all_records_df['concat_column'].isin(single_record_groups)]
-    filtered_single_df = single_record_df[
-        (single_record_df['genomeID_count'] > args.min_genome_count) &  # Changed from >= to >
-        (single_record_df['repeat_count'] > args.min_repeat_count)
+
+    filtered_single_df = all_records_df[
+        (all_records_df['genomeID_count'] > args.min_genome_count) & 
+        (all_records_df['repeat_count'] > args.min_repeat_count)
     ]
+######### Current Logic
+
+    filtered_multi_groups_df = hotspot_df.groupby('concat_column').filter(
+        lambda g: g['genomeID_count'].sum() <= total_unique_genomes
+    )
+
+    filtered_hotspot_df = filtered_multi_groups_df.copy()    
+
+#########
+
+########## 2nd Logic
+    # Find the concat_column values that exist in both DataFrames
+    single_concat_values = set(filtered_single_df['concat_column'])
+    
+    # Extract rows from hotspot_df where concat_column is in single_concat_values
+    matching_hotspot_rows = hotspot_df[hotspot_df['concat_column'].isin(single_concat_values)]
+    
+    # Log the number of matching rows found
+    logger.info(f"Found {len(matching_hotspot_rows)} rows in hotspot_df with concat_column matching filtered_single_df")
+    
+    # Save these matching rows to a CSV file
+    matching_csv_path = os.path.join(tmp_dir, "hotspot_single_matches.csv")
+    matching_hotspot_rows.to_csv(matching_csv_path, index=False)
+    logger.info(f"Saved matching rows to: {matching_csv_path}")
+#########
+
+    # Save these matching rows to a CSV file
+    repeatvariation_path = os.path.join(tmp_dir, "repeatvariation.csv")
+    filtered_single_df.to_csv(repeatvariation_path, index=False)
+    logger.info(f"Saved matching rows to: {repeatvariation_path}")
+     # Save these matching rows to a CSV file
+    cyclical_path = os.path.join(tmp_dir, "cyclical_variation.csv")
+    filtered_hotspot_df.to_csv(cyclical_path, index=False)
+    logger.info(f"Saved matching rows to: {cyclical_path}")
+    
     
     # Combine both
-    filtered_hotspot_df = pd.concat([filtered_hotspot_df, filtered_single_df])
+    filtered_hotspot_df = pd.concat([matching_hotspot_rows, filtered_single_df])
+
     
-    # Drop temporary columns
+    # After dropping temporary columns and duplicates:
     filtered_hotspot_df = filtered_hotspot_df.drop(columns=['motif_variations', 'concat_column'])
-    
+    filtered_hotspot_df = filtered_hotspot_df.drop_duplicates()
+
     logger.info(f"Records after filtering: {len(filtered_hotspot_df)}")
-    filtered_hotspot_df.to_csv(files['hotspot'], index=False)
+    
+    # Create a copy for the cleaned version (to keep the original intact for HSSR processing)
+    mutational_hotspot_df = filtered_hotspot_df.copy()
+    
+    # Drop the specified columns from the cleaned version
+    columns_to_drop = ['genomeID', 'repeat', 'category', 'country', 'year', 'ssr_position']
+    for col in columns_to_drop:
+        if col in mutational_hotspot_df.columns:
+            mutational_hotspot_df = mutational_hotspot_df.drop(columns=[col])
+    
+    # Save the cleaned version to the main output directory
+    mutational_hotspot_file = os.path.join(out_dir, "mutational_hotspot.csv")
+    mutational_hotspot_df.to_csv(mutational_hotspot_file, index=False)
+    logger.info(f"Saved mutational hotspot data (with columns removed) to: {os.path.basename(mutational_hotspot_file)}")
+    
 
     # Process and save HSSR data
     hssr_df = process_hssr(filtered_hotspot_df, ssrcombo_df, logger)
     hssr_df.to_csv(files['hssr'], index=False)
+    
+    
 
     # Log output files
     logger.info("\nOutput files:")

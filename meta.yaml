@@ -1,5 +1,5 @@
 {% set name = "crossroad" %}
-{% set version = "0.1.4" %}
+{% set version = "0.1.5" %}
 {% set python_min = "3.8" %}
 
 package:
@@ -7,8 +7,8 @@ package:
   version: {{ version }}
 
 source:
-  url: https://files.pythonhosted.org/packages/b2/15/2036298fbb7392c8938632a973e3e63bda247ce96b3069017d33e7d9662a/crossroad_cli-0.1.4.tar.gz
-  sha256: 21a02bfd9ea43743c00fa3377fa83e2397cbb00799866e47d5f21cfa432e20bd
+  url: https://files.pythonhosted.org/packages/0e/8c/59e3d350e449e2e0e4cbf81a65cf628deb72260bb2c4040078e7e6071a71/crossroad_cli-0.1.5.tar.gz
+  sha256: e6a350468327c2c4b8ae955c29b69252d61aa3536ccb0113505616a7fd3ce551
 
 build:
   noarch: python  # Add this line to make it platform-independent
@@ -43,7 +43,6 @@ requirements:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - bioconda::minimap2
     - pranjalpruthi::perf_ssr
     - pip
 
@@ -60,7 +59,6 @@ test:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - bioconda::minimap2
 
 about:
   home: https://github.com/pranjalpruthi/crossroad

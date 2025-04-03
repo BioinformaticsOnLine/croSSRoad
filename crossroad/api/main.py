@@ -134,16 +134,17 @@ async def analyze_ssr(
             ssr_combo = gc2.main(gc2_args)
 
             # Module 3: Process SSR Results
+            ref_id_to_pass = reference_id if reference_id else None
+
             ssr_args = argparse.Namespace(
                 ssrcombo=ssr_combo,
                 jobOut=main_dir,    
                 tmp=tmp_dir,
                 logger=logger,
+                reference=ref_id_to_pass,
                 min_repeat_count=perf_params.min_repeat_count,
                 min_genome_count=perf_params.min_genome_count
             )
-            if reference_id is not None:
-                setattr(ssr_args, 'reference', reference_id)
 
             process_ssr_results.main(ssr_args)
 

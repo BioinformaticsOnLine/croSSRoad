@@ -177,14 +177,40 @@ def reformat_perf(perf_out, reformatted):
 
 
 def merge_categories(ssr_file, cat_file, stats_file, out_file):
+    """Merge SSR data with category and stats data, handling missing values appropriately."""
+    # Read files with specific dtype settings
     ssr_df = pd.read_csv(ssr_file, sep="\t")
-    cat_df = pd.read_csv(cat_file, sep="\t")
+    
+    # Read categories file with specific dtypes to prevent automatic conversion
+    cat_df = pd.read_csv(cat_file, sep="\t", 
+                        dtype={
+                            'genomeID': str,
+                            'category': str,
+                            'country': str,
+                            'year': str  # Read year as string initially
+                        })
+    
     stats_df = pd.read_csv(stats_file, sep="\t")
-    merged = (
-        ssr_df.merge(cat_df, on="genomeID", how="left")
-        .merge(stats_df, on="genomeID", how="left")
-    )
-    merged.to_csv(out_file, sep="\t", index=False)
+    
+    # Merge the dataframes
+    merged = (ssr_df.merge(cat_df, on="genomeID", how="left")
+             .merge(stats_df, on="genomeID", how="left"))
+    
+    # Handle year column
+    def process_year(year):
+        if pd.isna(year) or year == '' or year == 'NA':
+            return 'undefined'
+        try:
+            # Convert to integer if possible
+            return str(int(float(year)))
+        except (ValueError, TypeError):
+            return 'undefined'
+    
+    # Process the year column
+    merged['year'] = merged['year'].apply(process_year)
+    
+    # Write to file with controlled formatting
+    merged.to_csv(out_file, sep="\t", index=False, na_rep='undefined')
 
 
 def generate_locicons(merged_tsv, tmp_dir, logger):
