@@ -7,7 +7,7 @@ from datetime import datetime
 
 from crossroad.core import m2, gc2, process_ssr_results
 from crossroad.core.logger import setup_logging
-
+from crossroad.core.plotting import generate_all_plots
 def main():
     parser = argparse.ArgumentParser(
         description="CrossRoad: A tool for analyzing SSRs in genomic data"
@@ -106,6 +106,17 @@ def main():
             )
             
             process_ssr_results.main(ssr_args)
+
+        # --- Generate Plots ---
+        try:
+            logger.info("Starting post-processing: Generating plots...")
+            plots_output_dir = os.path.join(output_dir, "plots")
+            # main_dir is already defined (line 59)
+            generate_all_plots(main_dir, plots_output_dir)
+            logger.info("Finished generating plots.")
+        except Exception as plot_err:
+            logger.error(f"An error occurred during plot generation: {plot_err}", exc_info=True)
+            # Logged the error, but continue to report main analysis success
 
         logger.info("Analysis completed successfully")
         print(f"Results available in: {output_dir}")

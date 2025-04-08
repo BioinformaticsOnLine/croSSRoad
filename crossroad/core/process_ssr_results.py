@@ -181,7 +181,8 @@ def main(args=None):
     
     # Create a copy for the cleaned version (to keep the original intact for HSSR processing)
     mutational_hotspot_df = filtered_hotspot_df.copy()
-    
+    mutational_hotspot_df_path = os.path.join(tmp_dir, "mh_tmp.csv")
+    mutational_hotspot_df.to_csv(mutational_hotspot_df_path, index=False)
     # Drop the specified columns from the cleaned version
     columns_to_drop = ['genomeID', 'repeat', 'category', 'country', 'year', 'ssr_position']
     for col in columns_to_drop:

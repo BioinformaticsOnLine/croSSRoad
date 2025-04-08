@@ -16,7 +16,7 @@ from crossroad.core.logger import setup_logging
 from crossroad.core import m2
 from crossroad.core import gc2
 from crossroad.core import process_ssr_results
-
+from crossroad.core.plotting import generate_all_plots
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data",
@@ -148,10 +148,21 @@ async def analyze_ssr(
 
             process_ssr_results.main(ssr_args)
 
-        # Create zip file of results
+        # --- Generate Plots ---
+        try:
+            logger.info("Starting post-processing: Generating plots...")
+            plots_output_dir = os.path.join(output_dir, "plots")
+            # main_dir is already defined (line 65)
+            generate_all_plots(main_dir, plots_output_dir)
+            logger.info("Finished generating plots.")
+        except Exception as plot_err:
+            logger.error(f"An error occurred during plot generation: {plot_err}", exc_info=True)
+            # Logged the error, but continue to zip and return main results
+
+        # Create zip file of results (including plots if generated)
         output_zip = os.path.join(job_dir, "results.zip")
         shutil.make_archive(output_zip[:-4], 'zip', output_dir)
-        logger.info("Results archived successfully")
+        logger.info("Results (including plots) archived successfully")
 
         return FileResponse(
             output_zip,
@@ -164,4 +175,4 @@ async def analyze_ssr(
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8000)
