@@ -112,7 +112,7 @@ def main():
             logger.info("Starting post-processing: Generating plots...")
             plots_output_dir = os.path.join(output_dir, "plots")
             # main_dir is already defined (line 59)
-            generate_all_plots(main_dir, plots_output_dir)
+            generate_all_plots(main_dir, plots_output_dir, args.reference_id) # Pass reference_id
             logger.info("Finished generating plots.")
         except Exception as plot_err:
             logger.error(f"An error occurred during plot generation: {plot_err}", exc_info=True)
