@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.1.5",
+    version="0.1.6",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -21,6 +21,8 @@ setup(
         "pydantic",
         "requests",
         "perf_ssr",
+        "plotly>=5.18.0",
+        "plotly-upset-hd>=0.0.2",
     ],
     entry_points={
         "console_scripts": [

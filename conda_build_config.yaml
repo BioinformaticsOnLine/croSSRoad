@@ -7,3 +7,15 @@ python:
   - 3.11
 package_name:
   - crossroad
+
+# Add channel configuration
+channels:
+  - conda-forge
+  - bioconda
+  - pranjalpruthi
+  - defaults
+
+# Add build configuration
+build:
+  noarch: python
+  preserve_egg_dir: False

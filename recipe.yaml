@@ -1,15 +1,16 @@
-{% set name = "crossroad" %}
-{% set version = "0.1.6" %}
-{% set python_min = "3.8" %}
-{% set numpy_version = "1.22" %}
+context:
+  name: crossroad
+  version: 0.1.6
+  python_min: '3.8'
+  numpy_version: '1.22'
 
 package:
-  name: {{ name|lower }}
-  version: {{ version }}
+  name: '{{ name|lower }}'
+  version: '{{ version }}'
 
 source:
   url: https://files.pythonhosted.org/packages/1e/2e/48c69abc1e3a72a73b7f29a823a602278449fe88221211bb169d63d9f3cf/crossroad_cli-0.1.6-py3-none-any.whl
-  sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d  # This is the SHA256 of the wheel file
+  sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d
 
 build:
   noarch: python
@@ -18,20 +19,20 @@ build:
     pip install --no-deps --ignore-installed --no-cache-dir crossroad_cli-{{ version }}-py3-none-any.whl
   entry_points:
     - crossroad = crossroad.cli.main:main
-  preserve_egg_dir: False
+  preserve_egg_dir: false
 
 requirements:
   host:
-    - python {{ python_min }}
+    - 'python {{ python_min }}'
     - pip
     - setuptools
-    - numpy {{ numpy_version }}
+    - 'numpy {{ numpy_version }}'
     - pandas
     - plotly
 
   run:
     - python
-    - numpy {{ numpy_version }}
+    - 'numpy {{ numpy_version }}'
     - fastapi
     - uvicorn
     - python-multipart
@@ -42,7 +43,7 @@ requirements:
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - pranjalpruthi::perf_ssr
+    - jitendralab::perf_ssr
     - jitendralab::plotly-upset-hd
 
 test:
@@ -75,4 +76,4 @@ about:
 
 extra:
   recipe-maintainers:
-    - pranjalpruthi
+    - pranjalpruthi 

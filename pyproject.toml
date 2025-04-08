@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crossroad-cli"
-version = "0.1.5"
+version = "0.1.6"
 description = "A tool for analyzing SSRs in genomic data"
 readme = "README.md"
 authors = [
@@ -25,6 +25,8 @@ dependencies = [
     "pydantic",
     "requests",
     "perf_ssr",
+    "plotly>=5.18.0",
+    "plotly-upset-hd>=0.0.2",
 ]
 
 [project.scripts]
