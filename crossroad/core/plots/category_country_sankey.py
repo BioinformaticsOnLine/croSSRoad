@@ -5,27 +5,34 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.colors
-import seaborn as sns
+import plotly.express as px
 import os
 import logging
 import traceback
 
 logger = logging.getLogger(__name__)
 
-# Helper function (copied from the main plotting.py)
-def sns_to_plotly_rgba(rgb_tuple, alpha=1.0):
-    """Converts a Seaborn RGB tuple (0-1 scale) to a Plotly rgba string."""
-    if not (isinstance(rgb_tuple, tuple) and len(rgb_tuple) == 3):
-         if isinstance(rgb_tuple, str) and rgb_tuple.startswith('#'):
-             try:
-                 rgb_tuple = plotly.colors.hex_to_rgb(rgb_tuple)
-                 return f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
-             except ValueError:
-                 return f"rgba(204, 204, 204, {alpha})" # Default grey
-         else:
-             return f"rgba(204, 204, 204, {alpha})"
-    r, g, b = [int(c * 255) for c in rgb_tuple]
-    return f"rgba({r}, {g}, {b}, {alpha})"
+# Helper function (Updated to handle hex directly or convert RGB if needed, though likely not needed now)
+def color_to_plotly_rgba(color_input, alpha=1.0):
+    """Converts various color inputs (hex, rgb tuple 0-1, rgb tuple 0-255) to a Plotly rgba string."""
+    try:
+        if isinstance(color_input, str) and color_input.startswith('#'):
+            rgb_tuple = plotly.colors.hex_to_rgb(color_input)
+            return f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
+        elif isinstance(color_input, tuple) and len(color_input) == 3:
+            # Assuming RGB 0-255 if numbers are large, else 0-1
+            if any(c > 1 for c in color_input):
+                 r, g, b = int(color_input[0]), int(color_input[1]), int(color_input[2])
+            else: # Assume 0-1 scale
+                 r, g, b = [int(c * 255) for c in color_input]
+            return f"rgba({r}, {g}, {b}, {alpha})"
+        else:
+             # Fallback for unknown formats
+             logger.warning(f"Unknown color format encountered: {color_input}. Using default grey.")
+             return f"rgba(204, 204, 204, {alpha})" # Default grey
+    except Exception as e:
+        logger.error(f"Error converting color {color_input}: {e}. Using default grey.")
+        return f"rgba(204, 204, 204, {alpha})"
 
 # --- Plotting Function ---
 
@@ -80,18 +87,26 @@ def create_category_country_sankey(df, output_dir):
     nodes = unique_categories + unique_countries
     node_map = {name: i for i, name in enumerate(nodes)}
 
-    # --- Assign colors using Seaborn palettes ---
+    # --- Assign colors using Plotly palettes ---
     num_categories = len(unique_categories)
     num_countries = len(unique_countries)
 
-    # Generate Seaborn palettes (returns list of RGB tuples, 0-1 scale)
-    category_palette_sns = sns.color_palette('hls', num_categories)
-    country_palette_sns = sns.color_palette('husl', num_countries)
+    # Generate Plotly palettes (these return lists of hex strings)
+    # Use Set2 for categories, Pastel for countries (or choose others like Plotly, G10, T10, etc.)
+    category_palette_px = px.colors.qualitative.Plotly[:num_categories]
+    if len(category_palette_px) < num_categories: # Handle palette running out
+        category_palette_px.extend(px.colors.qualitative.Pastel[:num_categories - len(category_palette_px)])
+        if len(category_palette_px) < num_categories:
+             category_palette_px.extend(['#CCCCCC'] * (num_categories - len(category_palette_px))) # Fallback grey
 
-    # Convert Seaborn palettes to Plotly rgba strings for nodes (alpha=1.0)
-    category_colors_rgba = [sns_to_plotly_rgba(c, alpha=1.0) for c in category_palette_sns]
-    country_colors_rgba = [sns_to_plotly_rgba(c, alpha=1.0) for c in country_palette_sns]
-    node_colors = category_colors_rgba + country_colors_rgba
+    country_palette_px = px.colors.qualitative.Pastel[:num_countries]
+    if len(country_palette_px) < num_countries: # Handle palette running out
+        country_palette_px.extend(px.colors.qualitative.Plotly[:num_countries - len(country_palette_px)])
+        if len(country_palette_px) < num_countries:
+             country_palette_px.extend(['#AAAAAA'] * (num_countries - len(country_palette_px))) # Darker Fallback grey
+
+    # Node colors can be directly assigned from the hex palettes
+    node_colors = category_palette_px + country_palette_px
 
     # Create source, target, value lists using the node map
     sources = [node_map[cat] for cat in link_data['category']]
@@ -99,11 +114,12 @@ def create_category_country_sankey(df, output_dir):
     values = link_data['genomeID'].tolist()
 
     # --- Link colors - color by source (category) node (alpha=0.6) ---
+    # Use the color_to_plotly_rgba helper to add alpha to the hex colors
     link_colors_rgba = []
     for cat in link_data['category']:
         cat_index = unique_categories.index(cat)
-        source_rgb_tuple = category_palette_sns[cat_index % len(category_palette_sns)]
-        link_colors_rgba.append(sns_to_plotly_rgba(source_rgb_tuple, alpha=0.6))
+        hex_color = category_palette_px[cat_index % len(category_palette_px)]
+        link_colors_rgba.append(color_to_plotly_rgba(hex_color, alpha=0.6))
 
     # --- Calculate Summary Statistics ---
     total_unique_genomes = df_proc['genomeID'].nunique()

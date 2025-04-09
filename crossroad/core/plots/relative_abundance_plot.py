@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import numpy as np
-import seaborn as sns # Keep seaborn for the palette
+import plotly.express as px # Changed import
 import os
 import logging
 import traceback
@@ -76,11 +76,17 @@ def create_relative_abundance_plot(df, output_dir):
         4: 'Tetramer', 5: 'Pentamer', 6: 'Hexamer'
     }
 
-    # Define the colorway using Seaborn "Accent"
-    palette = sns.color_palette("Accent", n_colors=len(sorted_motif_lengths))
-    hex_palette = palette.as_hex()
+    # Define the colorway using Plotly Express "Accent"
+    palette = px.colors.qualitative.Accent[:len(sorted_motif_lengths)]
+    if len(palette) < len(sorted_motif_lengths):
+         # Fallback if Accent runs out (unlikely for 6 motif types)
+         palette.extend(px.colors.qualitative.Plotly[:len(sorted_motif_lengths) - len(palette)])
+         if len(palette) < len(sorted_motif_lengths):
+             palette.extend(['#CCCCCC'] * (len(sorted_motif_lengths) - len(palette)))
+
     # Map colors to the actual motif lengths present in the data
-    color_map = {length: hex_palette[i % len(hex_palette)] for i, length in enumerate(sorted_motif_lengths)}
+    # Plotly palettes are already hex strings
+    color_map = {length: palette[i % len(palette)] for i, length in enumerate(sorted_motif_lengths)}
 
 
     plotly_series = []

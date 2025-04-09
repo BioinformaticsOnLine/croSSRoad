@@ -8,7 +8,7 @@ import traceback
 import plotly.io as pio # Keep for theme setting if desired globally
 
 # Import the plotting functions from the new modules
-from .plots.category_country_sankey import create_category_country_sankey, sns_to_plotly_rgba # Import helper if needed globally? No, keep it local.
+from .plots.category_country_sankey import create_category_country_sankey, color_to_plotly_rgba # Corrected import name
 from .plots.gene_country_sankey import create_gene_country_sankey
 from .plots.hotspot_plot import create_hotspot_plot
 from .plots.loci_conservation_plot import create_loci_conservation_plot

@@ -1,16 +1,16 @@
 context:
   name: crossroad
-  version: 0.1.6
+  version: 0.1.8
   python_min: '3.8'
-  numpy_version: '1.22'
+  numpy_version: '1.23'
 
 package:
   name: '{{ name|lower }}'
   version: '{{ version }}'
 
 source:
-  url: https://files.pythonhosted.org/packages/1e/2e/48c69abc1e3a72a73b7f29a823a602278449fe88221211bb169d63d9f3cf/crossroad_cli-0.1.6-py3-none-any.whl
-  sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d
+  path: dist/crossroad_cli-{{ version }}-py3-none-any.whl
+  sha256: 586cd37df730c29ab4d81b659e1aea2d0e3746edf6bbb8b929a3c2e5f485ede3
 
 build:
   noarch: python

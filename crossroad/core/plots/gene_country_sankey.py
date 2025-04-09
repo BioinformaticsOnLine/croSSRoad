@@ -6,27 +6,32 @@ import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
 import plotly.colors
-import seaborn as sns
 import os
 import logging
 import traceback
 
 logger = logging.getLogger(__name__)
 
-# Helper function (copied from the main plotting.py)
-def sns_to_plotly_rgba(rgb_tuple, alpha=1.0):
-    """Converts a Seaborn RGB tuple (0-1 scale) to a Plotly rgba string."""
-    if not (isinstance(rgb_tuple, tuple) and len(rgb_tuple) == 3):
-         if isinstance(rgb_tuple, str) and rgb_tuple.startswith('#'):
-             try:
-                 rgb_tuple = plotly.colors.hex_to_rgb(rgb_tuple)
-                 return f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
-             except ValueError:
-                 return f"rgba(204, 204, 204, {alpha})" # Default grey
-         else:
+# Helper function (copied from the main plotting.py - potentially reuse from plotting module instead)
+def color_to_plotly_rgba(color_input, alpha=1.0):
+    """Converts various color inputs (hex, rgb tuple 0-1, rgb tuple 0-255) to a Plotly rgba string."""
+    try:
+        if isinstance(color_input, str) and color_input.startswith('#'):
+            rgb_tuple = plotly.colors.hex_to_rgb(color_input)
+            return f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
+        elif isinstance(color_input, tuple) and len(color_input) == 3:
+            # Assuming RGB 0-255 if numbers are large, else 0-1
+            if any(c > 1 for c in color_input):
+                 r, g, b = int(color_input[0]), int(color_input[1]), int(color_input[2])
+            else: # Assume 0-1 scale
+                 r, g, b = [int(c * 255) for c in color_input]
+            return f"rgba({r}, {g}, {b}, {alpha})"
+        else:
+             logger.warning(f"Unknown color format encountered: {color_input}. Using default grey.")
              return f"rgba(204, 204, 204, {alpha})"
-    r, g, b = [int(c * 255) for c in rgb_tuple]
-    return f"rgba({r}, {g}, {b}, {alpha})"
+    except Exception as e:
+        logger.error(f"Error converting color {color_input}: {e}. Using default grey.")
+        return f"rgba(204, 204, 204, {alpha})"
 
 # --- Plotting Function ---
 
@@ -81,7 +86,7 @@ def create_gene_country_sankey(df, output_dir):
     nodes = unique_genes + unique_countries
     node_map = {name: i for i, name in enumerate(nodes)}
 
-    # Assign colors: Plotly palette for genes, Seaborn 'husl' for countries
+    # Assign colors: Use Plotly palettes for both
     num_genes = len(unique_genes)
     num_countries = len(unique_countries)
 
@@ -92,14 +97,15 @@ def create_gene_country_sankey(df, output_dir):
         if len(gene_colors_hex) < num_genes:
             gene_colors_hex.extend(['#CCCCCC'] * (num_genes - len(gene_colors_hex))) # Fallback grey
 
-    # Country colors (using Seaborn 'husl' palette - returns RGB tuples 0-1)
-    country_palette_sns = sns.color_palette('husl', num_countries)
-    # Convert Seaborn RGB tuples to Plotly rgba strings (alpha=1.0 for nodes)
-    country_colors_rgba = [sns_to_plotly_rgba(c, alpha=1.0) for c in country_palette_sns]
+    # Country colors (using another Plotly palette - e.g., Pastel)
+    country_colors_hex = px.colors.qualitative.Pastel[:num_countries]
+    if len(country_colors_hex) < num_countries: # Handle palette running out
+        country_colors_hex.extend(px.colors.qualitative.Plotly[:num_countries - len(country_colors_hex)])
+        if len(country_colors_hex) < num_countries:
+             country_colors_hex.extend(['#AAAAAA'] * (num_countries - len(country_colors_hex))) # Darker Fallback grey
 
-    # Combine node colors (genes as hex, countries as rgba)
-    # Plotly Sankey nodes can handle mixed color formats (hex/rgba strings)
-    node_colors = gene_colors_hex + country_colors_rgba
+    # Combine node colors (Plotly Sankey handles hex strings directly)
+    node_colors = gene_colors_hex + country_colors_hex
 
     # Create source, target, value lists
     sources = [node_map[gene] for gene in link_data['gene']]
@@ -107,15 +113,12 @@ def create_gene_country_sankey(df, output_dir):
     values = link_data['genomeID'].tolist()
 
     # Link colors - color by source (gene) node with transparency
+    # Use the helper function to add alpha to the hex colors
     link_colors_rgba = []
     for gene in link_data['gene']:
         gene_index = unique_genes.index(gene)
         hex_color = gene_colors_hex[gene_index % len(gene_colors_hex)]
-        try:
-            rgb_tuple = plotly.colors.hex_to_rgb(hex_color)
-            link_colors_rgba.append(f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, 0.6)")
-        except ValueError:
-             link_colors_rgba.append("rgba(204, 204, 204, 0.6)") # Fallback grey
+        link_colors_rgba.append(color_to_plotly_rgba(hex_color, alpha=0.6))
 
     # --- Calculate Summary Statistics ---
     total_unique_genomes = df_proc['genomeID'].nunique()
