@@ -11,7 +11,7 @@ A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic dat
 - SSR analysis in genomic data
 - Gene-based SSR analysis
 - Mutational hotspot detection
-- Reference-based comparison
+- Both Reference free and Reference-based comparison
 - REST API support
 
 ## Installation
