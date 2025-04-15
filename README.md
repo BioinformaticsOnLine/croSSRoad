@@ -8,9 +8,12 @@ A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic dat
 
 ## Features
 
-- SSR analysis in genomic data
+- SSR comparative analysis of genomic data
+- Relative abundance and Relative density
+- Conserved, shared, and unique SSR motifs
 - Gene-based SSR analysis
 - Mutational hotspot detection
+- Evolutionary analysis:SSR length variation with respect to time point
 - Both Reference free and Reference-based comparison
 - REST API support
 
