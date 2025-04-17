@@ -1,13 +1,20 @@
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![Made with love in India](https://madewithlove.now.sh/in?heart=true&colorA=%23f65931&colorB=%23358a24&template=for-the-badge)
+
 # Crossroad *fast*API and CLI 
 
 A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic data,
 
 ## Features
 
-- SSR analysis in genomic data
+- SSR comparative analysis of genomic data
+- Relative abundance and Relative density
+- Conserved, shared, and unique SSR motifs
 - Gene-based SSR analysis
 - Mutational hotspot detection
-- Reference-based comparison
+- Evolutionary analysis:SSR length variation with respect to time point
+- Both Reference free and Reference-based comparison
 - REST API support
 
 ## Installation
