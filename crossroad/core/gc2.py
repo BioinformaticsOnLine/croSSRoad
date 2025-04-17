@@ -196,38 +196,38 @@ def main(args=None):
                             help="Path to final output table (ssr_genecombo.tsv)")
         parser.add_argument("--jobOut", default="output",
                             help="Output directory; a job folder will be created inside this directory")
-        parser.add_argument("--tmp", default="tmp",
-                            help="Temporary directory; a job folder will be created inside this directory")
+        parser.add_argument("--tmp", default="intrim", # Keep arg name as tmp, default to intrim
+                            help="Directory for intermediate files; a job folder will be created inside this directory")
         
         args = parser.parse_args()
         # Create default logger if running standalone
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger(__name__)
 
-    # Use the provided tmp directory
-    tmp_dir = args.tmp
+    # Use the provided intermediate directory (passed as 'tmp' from CLI/API)
+    intrim_dir = args.tmp # Assign the value from args.tmp to intrim_dir
     
-    # Final outputs will go directly to main output directory
-    final_out = os.path.join(args.jobOut, "ssr_genecombo.tsv")
-    non_gene_out = os.path.join(args.jobOut, "ssr_non_gene.tsv")
-    non_ssr_genes_out = os.path.join(args.jobOut, "genes_non_ssr.tsv")
+    # Final outputs
+    final_out = os.path.join(args.jobOut, "ssr_genecombo.tsv") # Main output dir
+    non_gene_out = os.path.join(intrim_dir, "ssr_non_gene.tsv") # Intermediate dir (use renamed variable)
+    non_ssr_genes_out = os.path.join(intrim_dir, "genes_non_ssr.tsv") # Intermediate dir (use renamed variable)
     
     # Process files
-    merged_bed = os.path.join(tmp_dir, "mergedOut.bed")
+    merged_bed = os.path.join(intrim_dir, "mergedOut.bed") # Use renamed variable
     logger.info("Removing header from mergedOut.tsv...")
     remove_header(args.merged, merged_bed)
 
     # Find overlapping SSRs
-    intersect_out = os.path.join(tmp_dir, "intersect_output.bed")
-    run_bedtools_intersect(merged_bed, args.gene, intersect_out, tmp_dir, logger)
+    intersect_out = os.path.join(intrim_dir, "intersect_output.bed") # Use renamed variable
+    run_bedtools_intersect(merged_bed, args.gene, intersect_out, intrim_dir, logger) # Use renamed variable
 
     # Find non-overlapping SSRs
-    no_overlap_out = os.path.join(tmp_dir, "no_overlap_output.bed")
-    run_bedtools_intersect_no_overlap(merged_bed, args.gene, no_overlap_out, tmp_dir, logger)
+    no_overlap_out = os.path.join(intrim_dir, "no_overlap_output.bed") # Use renamed variable
+    run_bedtools_intersect_no_overlap(merged_bed, args.gene, no_overlap_out, intrim_dir, logger) # Use renamed variable
 
     # Find non-overlapping genes
-    no_overlap_genes_out = os.path.join(tmp_dir, "no_overlap_genes_output.bed")
-    run_bedtools_intersect_no_overlap_genes(merged_bed, args.gene, no_overlap_genes_out, tmp_dir, logger)
+    no_overlap_genes_out = os.path.join(intrim_dir, "no_overlap_genes_output.bed") # Use renamed variable
+    run_bedtools_intersect_no_overlap_genes(merged_bed, args.gene, no_overlap_genes_out, intrim_dir, logger) # Use renamed variable
 
     assign_ssr_position(intersect_out, final_out, logger)
     write_non_gene_ssrs(no_overlap_out, non_gene_out, args.merged)
@@ -241,8 +241,8 @@ def main(args=None):
     
     logger.info("\nOutput files:")
     logger.info(f"SSR Gene Combo table generated at: {final_out}")
-    logger.info(f"SSR Non-gene table generated at: {non_gene_out}")
-    logger.info(f"Genes Non-SSR table generated at: {non_ssr_genes_out}")
+    logger.info(f"SSR Non-gene table generated at: {non_gene_out}") # Path updated
+    logger.info(f"Genes Non-SSR table generated at: {non_ssr_genes_out}") # Path updated
 
     # Return the path to ssr_genecombo.tsv for the API
     return final_out

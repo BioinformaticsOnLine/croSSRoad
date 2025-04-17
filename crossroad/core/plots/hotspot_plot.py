@@ -99,11 +99,25 @@ def create_hotspot_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Motif Repeat Count by Gene (Hotspots)</b>',
+            text='<b>Motif Repeat Count by Gene (Hotspots)</b>', # Main title only
             font=title_font, x=0.5, xanchor='center',
             y=1 - (fixed_top_margin / (max(600, total_occurrences * 15 + fixed_top_margin + fixed_bottom_margin))) * 0.4,
             yanchor='top'
         ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         height=max(600, total_occurrences * 15 + fixed_top_margin + fixed_bottom_margin),
         font=dict(family="Arial, sans-serif"),
         paper_bgcolor='white',
@@ -158,12 +172,7 @@ def create_hotspot_plot(df, output_dir):
         bgcolor="rgba(255, 255, 255, 0.8)", xanchor='left', yanchor='top'
     )
 
-    fixed_signature_y = -0.25
-    fig.add_annotation(
-        xref="paper", yref="paper", x=0.98, y=fixed_signature_y,
-        text="<i>Powered by Crossroad</i>", showarrow=False,
-        font=signature_font, align='right', yanchor='top'
-    )
+    # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export (Pivot Table) ---
     logger.info(f"{plot_name}: Preparing data for CSV export...")

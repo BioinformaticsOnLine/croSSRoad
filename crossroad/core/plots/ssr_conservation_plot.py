@@ -1,4 +1,4 @@
-# crossroad/core/plots/loci_conservation_plot.py
+# crossroad/core/plots/ssr_conservation_plot.py
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,25 +12,25 @@ logger = logging.getLogger(__name__)
 
 # --- Plotting Function ---
 
-def create_loci_conservation_plot(df, output_dir):
+def create_ssr_conservation_plot(df, output_dir):
     """
-    Creates a publication-quality pie chart visualizing loci conservation
+    Creates a publication-quality pie chart visualizing SSR conservation
     based on genome presence, with summary statistics and export options.
     Saves outputs to a specific subdirectory.
 
     Args:
-        df (pd.DataFrame): DataFrame containing 'genomeID', 'loci',
+        df (pd.DataFrame): DataFrame containing 'genomeID', 'SSR',
                         'motif', and 'repeat' columns.
         output_dir (str): Base directory where plot-specific subdirectories will be created.
 
     Returns:
         None: Saves files directly.
     """
-    plot_name = "loci_conservation"
+    plot_name = "ssr_conservation"
     logger.info(f"Processing data for {plot_name} plot...")
 
     # --- Basic Validation and Type Conversion ---
-    required_cols = ['genomeID', 'loci', 'motif', 'repeat']
+    required_cols = ['genomeID', 'loci', 'motif', 'repeat'] # Expect 'loci' column from input
     if not all(col in df.columns for col in required_cols):
         missing = [col for col in required_cols if col not in df.columns]
         logger.error(f"{plot_name}: Missing required columns: {missing}")
@@ -40,7 +40,7 @@ def create_loci_conservation_plot(df, output_dir):
 
     # Ensure correct types
     df_proc['genomeID'] = df_proc['genomeID'].astype(str)
-    df_proc['loci'] = df_proc['loci'].astype(str)
+    df_proc['loci'] = df_proc['loci'].astype(str) # Process the 'loci' column
     df_proc['motif'] = df_proc['motif'].astype(str)
     df_proc['repeat'] = pd.to_numeric(df_proc['repeat'], errors='coerce').fillna(0).astype(int)
     df_proc = df_proc[df_proc['repeat'] > 0] # Filter out invalid repeats if necessary
@@ -56,40 +56,40 @@ def create_loci_conservation_plot(df, output_dir):
         logger.warning(f"{plot_name}: No unique genomes found. Cannot calculate conservation.")
         return
 
-    # --- Loci Conservation Calculation ---
-    logger.info(f"{plot_name}: Analyzing loci conservation...")
-    loci_genome_counts = df_proc[['loci', 'genomeID']].drop_duplicates().groupby('loci')['genomeID'].count()
+    # --- SSR Conservation Calculation ---
+    logger.info(f"{plot_name}: Analyzing SSR conservation...")
+    ssr_genome_counts = df_proc[['loci', 'genomeID']].drop_duplicates().groupby('loci')['genomeID'].count() # Group by 'loci' column
 
-    conserved_loci_count = 0
-    shared_loci_count = 0
-    unique_loci_count = 0
+    conserved_ssr_count = 0
+    shared_ssr_count = 0
+    unique_ssr_count = 0
 
-    for locus, count in loci_genome_counts.items():
+    for locus, count in ssr_genome_counts.items(): # Iterate using 'locus' from the grouped 'loci' column
         if count == total_unique_genomes:
-            conserved_loci_count += 1
+            conserved_ssr_count += 1 # Changed 'loci' to 'ssr'
         elif count > 1:
-            shared_loci_count += 1
+            shared_ssr_count += 1 # Changed 'loci' to 'ssr'
         else: # count == 1
-            unique_loci_count += 1
+            unique_ssr_count += 1 # Changed 'loci' to 'ssr'
 
-    total_loci = len(loci_genome_counts)
-    logger.info(f"{plot_name}: Total unique loci found: {total_loci}")
-    if total_loci == 0:
-        logger.warning(f"{plot_name}: No unique loci found. Cannot generate plot.")
+    total_ssr = len(ssr_genome_counts) # Changed 'loci' to 'ssr'
+    logger.info(f"{plot_name}: Total unique SSRs found: {total_ssr}") # Changed 'loci' to 'SSRs'
+    if total_ssr == 0:
+        logger.warning(f"{plot_name}: No unique SSRs found. Cannot generate plot.") # Changed 'loci' to 'SSRs'
         return
 
-    conserved_percent = (conserved_loci_count / total_loci) * 100 if total_loci > 0 else 0
-    shared_percent = (shared_loci_count / total_loci) * 100 if total_loci > 0 else 0
-    unique_percent = (unique_loci_count / total_loci) * 100 if total_loci > 0 else 0
+    conserved_percent = (conserved_ssr_count / total_ssr) * 100 if total_ssr > 0 else 0 # Changed 'loci' to 'ssr'
+    shared_percent = (shared_ssr_count / total_ssr) * 100 if total_ssr > 0 else 0 # Changed 'loci' to 'ssr'
+    unique_percent = (unique_ssr_count / total_ssr) * 100 if total_ssr > 0 else 0 # Changed 'loci' to 'ssr'
 
     pie_labels = ['Conserved', 'Shared', 'Unique']
     pie_values = [conserved_percent, shared_percent, unique_percent]
-    pie_counts = [conserved_loci_count, shared_loci_count, unique_loci_count]
+    pie_counts = [conserved_ssr_count, shared_ssr_count, unique_ssr_count] # Changed 'loci' to 'ssr'
     pie_colors = ['#87CEEB', '#90EE90', '#F08080'] # SkyBlue, LightGreen, LightCoral
 
-    logger.info(f"{plot_name}: Loci Categories - Conserved: {conserved_loci_count} ({conserved_percent:.2f}%), "
-                f"Shared: {shared_loci_count} ({shared_percent:.2f}%), "
-                f"Unique: {unique_loci_count} ({unique_percent:.2f}%)")
+    logger.info(f"{plot_name}: SSR Categories - Conserved: {conserved_ssr_count} ({conserved_percent:.2f}%), " # Changed 'Loci' to 'SSR', 'loci' to 'ssr'
+                f"Shared: {shared_ssr_count} ({shared_percent:.2f}%), " # Changed 'loci' to 'ssr'
+                f"Unique: {unique_ssr_count} ({unique_percent:.2f}%)") # Changed 'loci' to 'ssr'
 
     # --- Repeated Motif Conservation Calculation (for Export) ---
     logger.info(f"{plot_name}: Analyzing repeated motif conservation for export...")
@@ -116,13 +116,13 @@ def create_loci_conservation_plot(df, output_dir):
     # --- Calculate Summary Statistics ---
     stats = {
         'total_unique_genomes': total_unique_genomes,
-        'total_unique_loci': total_loci,
-        'conserved_loci_count': conserved_loci_count,
-        'shared_loci_count': shared_loci_count,
-        'unique_loci_count': unique_loci_count,
-        'conserved_loci_percent': conserved_percent,
-        'shared_loci_percent': shared_percent,
-        'unique_loci_percent': unique_percent,
+        'total_unique_ssr': total_ssr, # Changed 'loci' to 'ssr'
+        'conserved_ssr_count': conserved_ssr_count, # Changed 'loci' to 'ssr'
+        'shared_ssr_count': shared_ssr_count, # Changed 'loci' to 'ssr'
+        'unique_ssr_count': unique_ssr_count, # Changed 'loci' to 'ssr'
+        'conserved_ssr_percent': conserved_percent, # Changed 'loci' to 'ssr'
+        'shared_ssr_percent': shared_percent, # Changed 'loci' to 'ssr'
+        'unique_ssr_percent': unique_percent, # Changed 'loci' to 'ssr'
     }
     logger.info(f"{plot_name}: Summary statistics calculated.")
 
@@ -137,7 +137,7 @@ def create_loci_conservation_plot(df, output_dir):
         textinfo='percent+label',
         textfont_size=12,
         hovertemplate=(
-            "<b>%{label} Loci</b><br>" +
+            "<b>%{label} SSRs</b><br>" + # Changed 'Loci' to 'SSRs'
             "Count: %{customdata:,}<br>" +
             "Percentage: %{percent:.1%}" +
             "<extra></extra>"
@@ -159,16 +159,30 @@ def create_loci_conservation_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Distribution of Loci by Conservation Level</b>',
+            text='<b>Distribution of SSRs by Conservation Level</b>', # Main title only
             font=title_font, x=0.5, xanchor='center',
             y=1 - (fixed_top_margin / 600) * 0.5, yanchor='top'
         ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         height=600,
         paper_bgcolor='white',
         plot_bgcolor='white',
         showlegend=True,
         legend=dict(
-            title=dict(text='Loci Category', font=legend_font), font=legend_font,
+            title=dict(text='SSR Category', font=legend_font), font=legend_font, # Changed 'Loci' to 'SSR'
             orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5,
             bgcolor='rgba(255,255,255,0.8)', bordercolor='#cccccc', borderwidth=1
         ),
@@ -178,10 +192,10 @@ def create_loci_conservation_plot(df, output_dir):
     # --- Add Annotations ---
     stats_lines = ["<b>Summary Stats:</b>",
                    f"Total Genomes: {stats['total_unique_genomes']:,}",
-                   f"Total Loci: {stats['total_unique_loci']:,}", "---",
-                   f"Conserved: {stats['conserved_loci_count']:,} ({stats['conserved_loci_percent']:.1f}%)",
-                   f"Shared: {stats['shared_loci_count']:,} ({stats['shared_loci_percent']:.1f}%)",
-                   f"Unique: {stats['unique_loci_count']:,} ({stats['unique_loci_percent']:.1f}%)"]
+                   f"Total SSRs: {stats['total_unique_ssr']:,}", "---", # Changed 'Loci' to 'SSRs', 'loci' to 'ssr'
+                   f"Conserved: {stats['conserved_ssr_count']:,} ({stats['conserved_ssr_percent']:.1f}%)", # Changed 'loci' to 'ssr'
+                   f"Shared: {stats['shared_ssr_count']:,} ({stats['shared_ssr_percent']:.1f}%)", # Changed 'loci' to 'ssr'
+                   f"Unique: {stats['unique_ssr_count']:,} ({stats['unique_ssr_percent']:.1f}%)"] # Changed 'loci' to 'ssr'
     stats_text = "<br>".join(stats_lines)
 
     fig.add_annotation(
@@ -191,13 +205,7 @@ def create_loci_conservation_plot(df, output_dir):
         bgcolor="rgba(255, 255, 255, 0.8)", xanchor='left', yanchor='top'
     )
 
-    signature_y_position = -0.20
-
-    fig.add_annotation(
-        xref="paper", yref="paper", x=0.98, y=signature_y_position,
-        text="<i>Powered by Crossroad</i>", showarrow=False,
-        font=signature_font, align='right', yanchor='top'
-    )
+    # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export ---
     logger.info(f"{plot_name}: Preparing data for CSV export...")

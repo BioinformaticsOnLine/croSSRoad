@@ -6,34 +6,15 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.colors
 import plotly.express as px
+import colorsys # Import the colorsys module
 import os
 import logging
 import traceback
 
 logger = logging.getLogger(__name__)
 
-# Helper function (Updated to handle hex directly or convert RGB if needed, though likely not needed now)
-def color_to_plotly_rgba(color_input, alpha=1.0):
-    """Converts various color inputs (hex, rgb tuple 0-1, rgb tuple 0-255) to a Plotly rgba string."""
-    try:
-        if isinstance(color_input, str) and color_input.startswith('#'):
-            rgb_tuple = plotly.colors.hex_to_rgb(color_input)
-            return f"rgba({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]}, {alpha})"
-        elif isinstance(color_input, tuple) and len(color_input) == 3:
-            # Assuming RGB 0-255 if numbers are large, else 0-1
-            if any(c > 1 for c in color_input):
-                 r, g, b = int(color_input[0]), int(color_input[1]), int(color_input[2])
-            else: # Assume 0-1 scale
-                 r, g, b = [int(c * 255) for c in color_input]
-            return f"rgba({r}, {g}, {b}, {alpha})"
-        else:
-             # Fallback for unknown formats
-             logger.warning(f"Unknown color format encountered: {color_input}. Using default grey.")
-             return f"rgba(204, 204, 204, {alpha})" # Default grey
-    except Exception as e:
-        logger.error(f"Error converting color {color_input}: {e}. Using default grey.")
-        return f"rgba(204, 204, 204, {alpha})"
-
+# Helper function removed as Plotly palettes provide hex strings directly.
+# Alpha will be added during link color generation.
 # --- Plotting Function ---
 
 def create_category_country_sankey(df, output_dir):
@@ -91,13 +72,23 @@ def create_category_country_sankey(df, output_dir):
     num_categories = len(unique_categories)
     num_countries = len(unique_countries)
 
-    # Generate Plotly palettes (these return lists of hex strings)
-    # Use Set2 for categories, Pastel for countries (or choose others like Plotly, G10, T10, etc.)
-    category_palette_px = px.colors.qualitative.Plotly[:num_categories]
-    if len(category_palette_px) < num_categories: # Handle palette running out
-        category_palette_px.extend(px.colors.qualitative.Pastel[:num_categories - len(category_palette_px)])
-        if len(category_palette_px) < num_categories:
-             category_palette_px.extend(['#CCCCCC'] * (num_categories - len(category_palette_px))) # Fallback grey
+    # --- Generate Category Colors using HSL ---
+    # Generate evenly spaced hues for categories
+    category_palette_px = []
+    # Fixed saturation and lightness for good visibility
+    saturation = 0.7
+    lightness = 0.6
+    for i in range(num_categories):
+        hue = i / num_categories # Distribute hue evenly from 0.0 to 1.0
+        # Convert HSL to RGB (values are 0-1)
+        rgb_0_1 = colorsys.hls_to_rgb(hue, lightness, saturation)
+        # Convert RGB from 0-1 to 0-255
+        rgb_0_255 = tuple(int(c * 255) for c in rgb_0_1)
+        # Format as 'rgb(r, g, b)' string
+        category_palette_px.append(f"rgb({rgb_0_255[0]}, {rgb_0_255[1]}, {rgb_0_255[2]})")
+    logger.info(f"Generated {num_categories} HSL-based colors for categories.")
+
+    # --- Generate Country Colors using a standard palette (less likely to run out) ---
 
     country_palette_px = px.colors.qualitative.Pastel[:num_countries]
     if len(country_palette_px) < num_countries: # Handle palette running out
@@ -114,12 +105,27 @@ def create_category_country_sankey(df, output_dir):
     values = link_data['genomeID'].tolist()
 
     # --- Link colors - color by source (category) node (alpha=0.6) ---
-    # Use the color_to_plotly_rgba helper to add alpha to the hex colors
+    # Convert hex colors from the palette to rgba strings with alpha
     link_colors_rgba = []
+    alpha = 0.6
     for cat in link_data['category']:
         cat_index = unique_categories.index(cat)
         hex_color = category_palette_px[cat_index % len(category_palette_px)]
-        link_colors_rgba.append(color_to_plotly_rgba(hex_color, alpha=0.6))
+        # Convert color to RGB tuple, handling both hex and rgb() strings
+        # Category palette now reliably contains 'rgb(r, g, b)' strings
+        try:
+            # Parse the rgb string
+            parts = hex_color.strip('rgb()').split(',')
+            if len(parts) == 3:
+                r, g, b = [int(p.strip()) for p in parts]
+                # Format rgba string directly
+                link_colors_rgba.append(f"rgba({r}, {g}, {b}, {alpha})")
+            else:
+                 raise ValueError(f"Could not parse generated RGB string: {hex_color}")
+        except Exception as color_err:
+             logger.warning(f"Could not process generated color '{hex_color}' for link: {color_err}. Using default grey.")
+             # Fallback to grey RGBA
+             link_colors_rgba.append(f"rgba(204, 204, 204, {alpha})")
 
     # --- Calculate Summary Statistics ---
     total_unique_genomes = df_proc['genomeID'].nunique()
@@ -177,7 +183,26 @@ def create_category_country_sankey(df, output_dir):
     fixed_bottom_margin = 80
 
     fig.update_layout(
-        title=dict(text=title_text, x=0.5, xanchor='center', font=title_font),
+        title=dict(
+            text=f"{title_text}",  # Just the main title text
+            x=0.5, 
+            xanchor='center', 
+            font=title_font
+        ),
+        # Add a separate annotation for the "Powered by Crossroad" text with smaller font
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0,  # Position just below the main title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4),  # Very small font size (3-4)
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         font=label_font,
         height=max(700, num_categories * 25, num_countries * 25),
         paper_bgcolor='white',
@@ -210,17 +235,7 @@ def create_category_country_sankey(df, output_dir):
     )
 
     # Adjust signature position to be lower
-    signature_y_position = -0.1 # Fixed position below plot area
-
-    fig.add_annotation(
-        xref="paper", yref="paper",
-        x=0.98, y=signature_y_position, # Use fixed y position
-        text="<i>Powered by Crossroad</i>",
-        showarrow=False,
-        font=signature_font,
-        align='right',
-        yanchor='top' # Anchor to the top of the text block
-    )
+    # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export ---
     logger.info(f"{plot_name}: Preparing data for CSV export...")

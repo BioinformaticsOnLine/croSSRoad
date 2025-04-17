@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.1.8
+  version: 0.1.9
   python_min: '3.8'
   numpy_version: '1.23'
 
@@ -45,6 +45,7 @@ requirements:
     - bioconda::bedtools
     - jitendralab::perf_ssr
     - jitendralab::plotly-upset-hd
+    - rich # Added rich for TUI/logging
 
 test:
   imports:

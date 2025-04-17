@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.1.8",
+    version="0.1.9",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={

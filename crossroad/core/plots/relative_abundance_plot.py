@@ -76,13 +76,13 @@ def create_relative_abundance_plot(df, output_dir):
         4: 'Tetramer', 5: 'Pentamer', 6: 'Hexamer'
     }
 
-    # Define the colorway using Plotly Express "Accent"
-    palette = px.colors.qualitative.Accent[:len(sorted_motif_lengths)]
+    # Define the colorway using Plotly Express "Plotly" (default) palette
+    palette = px.colors.qualitative.Plotly[:len(sorted_motif_lengths)]
     if len(palette) < len(sorted_motif_lengths):
-         # Fallback if Accent runs out (unlikely for 6 motif types)
-         palette.extend(px.colors.qualitative.Plotly[:len(sorted_motif_lengths) - len(palette)])
+         # Fallback if Plotly runs out
+         palette.extend(px.colors.qualitative.Pastel[:len(sorted_motif_lengths) - len(palette)]) # Use another palette as fallback
          if len(palette) < len(sorted_motif_lengths):
-             palette.extend(['#CCCCCC'] * (len(sorted_motif_lengths) - len(palette)))
+             palette.extend(['#CCCCCC'] * (len(sorted_motif_lengths) - len(palette))) # Grey fallback
 
     # Map colors to the actual motif lengths present in the data
     # Plotly palettes are already hex strings
@@ -165,7 +165,7 @@ def create_relative_abundance_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Relative Abundance of SSR Motifs (per Mb per Genome)</b>',
+            text='<b>Relative Abundance of SSR Motifs (per Mb per Genome)</b>', # Main title only
             font=title_font,
             x=0.5,
             xanchor='center',
@@ -173,6 +173,20 @@ def create_relative_abundance_plot(df, output_dir):
             y=1 - (fixed_top_margin / (max(600, len(sorted_categories) * 25 + fixed_top_margin + fixed_bottom_margin))) * 0.5,
             yanchor='top'
         ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         height=max(600, len(sorted_categories) * 25 + fixed_top_margin + fixed_bottom_margin), # Adjust height based on categories + margins
         barmode='stack',
         paper_bgcolor='white',
@@ -245,18 +259,7 @@ def create_relative_abundance_plot(df, output_dir):
     )
 
     # Signature annotation - Use a fixed negative y-coordinate
-    signature_y_position = -0.18 # Adjust this value as needed for desired overlap/position
-
-    fig.add_annotation(
-        xref="paper", yref="paper",
-        x=0.98,
-        y=signature_y_position, # Use the fixed negative value
-        text="<i>Powered by Crossroad</i>",
-        showarrow=False,
-        font=signature_font,
-        align='right',
-        yanchor='top'
-    )
+    # Signature removed, integrated into title
 
 
     # --- Prepare Data for CSV Export ---

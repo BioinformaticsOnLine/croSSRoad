@@ -82,7 +82,8 @@ def create_upset_plot(df_merged, output_base_dir):
     logger.info("Attempting to generate UpSet plot...")
     plot_name = "motif_conservation_upset"
     output_dir = os.path.join(output_base_dir, "upset_plot")
-    output_path = os.path.join(output_dir, f"{plot_name}.html")
+    output_html_path = os.path.join(output_dir, f"{plot_name}.html")
+    output_csv_path = os.path.join(output_dir, f"{plot_name}_summary.csv") # Path for the summary table
 
     try:
         os.makedirs(output_dir, exist_ok=True)
@@ -140,13 +141,38 @@ def create_upset_plot(df_merged, output_base_dir):
             width=1000,
             font_family="Arial, sans-serif", # Use a common sans-serif font
             font=dict(size=12),
-            title=f'Motif Conservation Across Categories (UpSet Plot)',
-            title_x=0.5 # Center title
+            title=dict(
+                text='Motif Conservation Across Categories (UpSet Plot)', # Main title only
+                x=0.5, # Center title
+                xanchor='center'
+            ),
+            # Add annotation for "Powered by Crossroad"
+            annotations=[
+                dict(
+                    text="<i>Powered by Crossroad</i>",
+                    x=0.5,
+                    y=1.0, # Position below title
+                    xref="paper",
+                    yref="paper",
+                    showarrow=False,
+                    font=dict(size=4), # Small font size
+                    xanchor="center",
+                    yanchor="top"
+                )
+            ]
         )
 
         # Save the plot
-        fig.write_html(output_path, full_html=False, include_plotlyjs='cdn')
-        logger.info(f"Successfully generated and saved UpSet plot to {output_path}")
+        # Save the plot
+        fig.write_html(output_html_path, full_html=False, include_plotlyjs='cdn')
+        logger.info(f"Successfully generated and saved UpSet plot to {output_html_path}")
+
+        # Save the summary table
+        try:
+            processed_df.to_csv(output_csv_path, index=False)
+            logger.info(f"Successfully saved UpSet plot summary table to {output_csv_path}")
+        except Exception as e_csv:
+            logger.error(f"Failed to save UpSet plot summary table: {e_csv}\n{traceback.format_exc()}")
 
     except ImportError:
          logger.error("Failed to generate UpSet plot: 'plotly-upset' library not found. Please install it.", exc_info=False) # Don't need full traceback if it's just missing lib

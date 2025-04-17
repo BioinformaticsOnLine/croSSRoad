@@ -127,9 +127,23 @@ def create_temporal_faceted_scatter(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Temporal Analysis of SSR Length Distribution by Gene</b>',
+            text='<b>Temporal Analysis of SSR Length Distribution by Gene</b>', # Main title only
             font=fonts['title'], x=0.5, xanchor='center', y=0.98
         ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         paper_bgcolor='white',
         plot_bgcolor='white',
         showlegend=True,
@@ -180,11 +194,7 @@ def create_temporal_faceted_scatter(df, output_dir):
     )
 
     # Add signature
-    fig.add_annotation(
-        xref="paper", yref="paper", x=0.99, y=0.01, text="<i>Powered by Crossroad</i>",
-        showarrow=False, font=dict(size=10, color='#666666'), align='right',
-        xanchor='right', yanchor='bottom'
-    )
+    # Signature removed, integrated into title
 
     # --- Prepare Export Data ---
     export_df = df_proc[['year', 'length_of_ssr', 'motif', 'gene', 'genomeID']].copy()

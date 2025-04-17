@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crossroad-cli"
-version = "0.1.8"
+version = "0.1.9"
 description = "A tool for analyzing SSRs in genomic data"
 readme = "README.md"
 authors = [
@@ -27,6 +27,8 @@ dependencies = [
     "perf_ssr",
     "plotly>=5.18.0",
     "plotly-upset-hd>=0.0.2",
+    "rich", # Added for rich TUI elements and logging
+    "colorlog>=6.8.2", # Re-added, will be replaced by RichHandler later
 ]
 
 [project.scripts]

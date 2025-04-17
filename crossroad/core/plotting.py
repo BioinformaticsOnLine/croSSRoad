@@ -6,12 +6,15 @@ import os
 import logging
 import traceback
 import plotly.io as pio # Keep for theme setting if desired globally
-
+import sys
+import select
+import time
+import io
 # Import the plotting functions from the new modules
-from .plots.category_country_sankey import create_category_country_sankey, color_to_plotly_rgba # Corrected import name
+from .plots.category_country_sankey import create_category_country_sankey # Removed color_to_plotly_rgba import
 from .plots.gene_country_sankey import create_gene_country_sankey
 from .plots.hotspot_plot import create_hotspot_plot
-from .plots.loci_conservation_plot import create_loci_conservation_plot
+from .plots.ssr_conservation_plot import create_ssr_conservation_plot # Renamed file and function
 from .plots.motif_conservation_plot import create_motif_conservation_plot
 from .plots.relative_abundance_plot import create_relative_abundance_plot
 from .plots.repeat_distribution_plot import create_repeat_distribution_plot
@@ -20,26 +23,95 @@ from .plots.ssr_gene_intersect_plot import create_ssr_gene_intersect_plot
 from .plots.temporal_faceted_scatter import create_temporal_faceted_scatter
 from .plots.reference_ssr_distribution import create_scientific_ssr_plot # Added import
 from .plots.upset_plot import create_upset_plot # Added import for UpSet plot
+from .plots.motif_distribution_heatmap import create_motif_distribution_heatmap # Renamed import
+from .plots.gene_motif_count_dot_plot import create_ssr_gene_genome_dot_plot # Use the new function name
 # Set default theme (can be set here or managed elsewhere)
 # pio.templates.default = "plotly_white" # Keep commented if set elsewhere or per-plot
 
-logger = logging.getLogger(__name__)
+# Define colors locally for stage markers (as they are not passed from main)
+# These should visually match the ones used in main.py
+# Removed local ANSI color codes - rely on Rich markup passed to logger
+logger = logging.getLogger(__name__) # Get logger instance
+
+# --- Helper function to check for skip key ---
+def check_skip_key():
+    """
+    Checks if 'k' (followed by Enter) has been pressed on stdin without blocking.
+    Returns True if 'k' was pressed, False otherwise.
+    """
+    # Check if stdin is a TTY (interactive terminal)
+    is_tty = sys.stdin.isatty()
+    logger.debug(f"Checking for skip key. sys.stdin.isatty() = {is_tty}")
+    if not is_tty:
+        return False
+
+    try:
+        # Use select to check for input without blocking (slightly longer timeout)
+        # Increase timeout slightly to potentially catch input better
+        ready, _, _ = select.select([sys.stdin], [], [], 0.05) # Increased timeout to 0.05s
+        if ready:
+            # Input is available, read the line non-blockingly if possible
+            # Note: readline() itself might block if select reported ready spuriously
+            # or if input arrives between select and readline.
+            # This is a limitation without more complex terminal handling.
+            inp = sys.stdin.readline().strip() # Read line, remove leading/trailing whitespace
+            logger.debug(f"Input detected: '{inp}'") # Log detected input
+            # Check if the input is empty (i.e., only Enter was pressed)
+            if not inp:
+                # Provide immediate feedback to the user in the terminal
+                # Using logger.info ensures it goes to the log file too
+                logger.info("[bold yellow]Skipping plot due to user input (Enter pressed).[/]")
+                # Try to clear any remaining buffer for this line - best effort
+                while select.select([sys.stdin], [], [], 0.0)[0]:
+                    try:
+                        sys.stdin.read(1) # Read one char at a time
+                    except: # Catch potential errors during buffer clear
+                        break
+                return True
+            # If input was not empty, log it and continue
+            elif inp:
+                 logger.info(f"Input '{inp}' detected. Continuing.")
+
+    except (OSError, ValueError, BlockingIOError, io.UnsupportedOperation) as e:
+        # Handle potential errors if stdin is not as expected or non-blocking read fails
+        logger.debug(f"Error checking stdin for skip key: {e}")
+        # Assume no skip if there's an issue checking.
+        pass
+    except Exception as e: # Catch any other unexpected errors
+        logger.error(f"Unexpected error checking stdin for skip key: {e}", exc_info=True)
+        pass
+
+    return False
 
 # --- Main Orchestration Function ---
 
-def generate_all_plots(job_output_main_dir, job_output_plots_dir, reference_id=None):
+def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_plots_dir, reference_id=None):
     """
-    Loads data from job_output_main_dir, generates all defined plots by calling
-    functions from the crossroad.core.plots package, and saves them to
-    job_output_plots_dir (each plot type in its own subdirectory).
-    Optionally generates a reference-specific plot if reference_id is provided.
+    Loads data, generates plots, and saves them.
+    Prioritizes 'mergedOut.tsv' from job_output_main_dir for full plotting.
+    If 'mergedOut.tsv' is missing, falls back to 'reformatted.tsv' from
+    job_output_intrim_dir for a limited set of plots (FASTA-only mode).
 
     Args:
-        job_output_main_dir (str): Path to the directory containing main output files.
-        job_output_plots_dir (str): Path to the base directory where plot subdirectories will be created.
+        job_output_main_dir (str): Path to the main output directory (e.g., .../output/main).
+        job_output_intrim_dir (str): Path to the intermediate directory (e.g., .../output/intrim).
+        job_output_plots_dir (str): Path to the base directory for plot outputs (e.g., .../output/plots).
         reference_id (str, optional): The ID of the reference genome. Defaults to None.
     """
-    logger.info(f"Starting plot generation. Data source: {job_output_main_dir}, Output target: {job_output_plots_dir}, Reference ID: {reference_id}")
+    # Use the new stage marker style
+    # Note: Colors defined above are used here directly in the f-string,
+    # as the logger itself might not have these specific color codes mapped
+    # in the same way as the main script's direct logging.
+    # The logger.info() call will still use its configured format (e.g., adding levelname).
+    # We add a newline before the start marker for spacing.
+    # Use Rich markup for stage start - Note: Rule is not directly loggable, send styled text
+    # The main CLI already logs the Rule before calling this function.
+    # We can log a confirmation message here instead.
+    logger.info("[bold cyan]Starting Stage 4: Multi-Modal Data Visualization[/]")
+    logger.info(f"Main Data Source Dir: {job_output_main_dir}")
+    logger.info(f"Intermediate Data Source Dir: {job_output_intrim_dir}")
+    logger.info(f"Plot Output Target: {job_output_plots_dir}")
+    logger.info(f"Reference ID: {reference_id if reference_id else 'Not Provided'}")
 
     # Ensure the base output directory exists
     try:
@@ -50,20 +122,38 @@ def generate_all_plots(job_output_main_dir, job_output_plots_dir, reference_id=N
         return # Cannot proceed without output directory
 
     # --- Load Dataframes (Load once if used by multiple plots) ---
-    df_merged = None
+    # --- Determine Data Source and Load ---
+    df_plot_source = None
+    data_source_path = None
+    is_fasta_only_mode = False
+
     merged_out_path = os.path.join(job_output_main_dir, 'mergedOut.tsv')
+    reformatted_path = os.path.join(job_output_intrim_dir, 'reformatted.tsv')
+
     if os.path.exists(merged_out_path):
-        try:
-            logger.info(f"Loading data from {merged_out_path}...")
-            df_merged = pd.read_csv(merged_out_path, sep='\t', low_memory=False)
-            if df_merged.empty:
-                logger.warning(f"Loaded dataframe from {merged_out_path} is empty.")
-                df_merged = None # Treat as not loaded if empty
-        except Exception as e:
-            logger.error(f"Failed to load data from {merged_out_path}: {e}\n{traceback.format_exc()}")
-            df_merged = None
+        data_source_path = merged_out_path
+        logger.info(f"Found full data file: {data_source_path}. Proceeding with all plots.")
+    elif os.path.exists(reformatted_path):
+        data_source_path = reformatted_path
+        is_fasta_only_mode = True
+        logger.info(f"Found reformatted data file: {data_source_path}. Proceeding in FASTA-only plot mode.")
     else:
-        logger.warning(f"Input file not found: {merged_out_path}")
+        logger.error(f"Could not find required data file ('mergedOut.tsv' in {job_output_main_dir} or 'reformatted.tsv' in {job_output_intrim_dir}). Skipping all plots.")
+        return # Cannot proceed without data
+
+    # Load the determined data source
+    try:
+        logger.info(f"Loading data from {data_source_path}...")
+        df_plot_source = pd.read_csv(data_source_path, sep='\t', low_memory=False)
+        if df_plot_source.empty:
+            logger.warning(f"Loaded dataframe from {data_source_path} is empty. Skipping plots.")
+            df_plot_source = None
+    except Exception as e:
+        logger.error(f"Failed to load data from {data_source_path}: {e}\n{traceback.format_exc()}")
+        df_plot_source = None
+
+    # --- Load Other Required Dataframes (if they exist, regardless of mode) ---
+    # These are only used if not in FASTA-only mode, but load them if present
 
     df_hssr = None
     hssr_data_path = os.path.join(job_output_main_dir, 'hssr_data.csv')
@@ -112,173 +202,184 @@ def generate_all_plots(job_output_main_dir, job_output_plots_dir, reference_id=N
 
 
     # --- Generate Plots (Call functions with loaded dataframes) ---
+    logger.info("[bold yellow]Plotting started. You will have 3 seconds to press Enter to skip each plot after its prompt.[/]") # Updated prompt
+    plot_status = {} # Dictionary to track success/failure/skip status
 
-    # 1. Category -> Country Sankey (uses df_merged)
-    if df_merged is not None:
-        try:
-            logger.info(f"Generating Category->Country Sankey plot...")
-            create_category_country_sankey(df_merged.copy(), job_output_plots_dir) # Pass copy
-        except Exception as e:
-            logger.error(f"Failed to plot Category->Country Sankey: {e}\n{traceback.format_exc()}")
+    if df_plot_source is None:
+        logger.warning("Plot source dataframe is None. Skipping all plot generation.")
+        return
+
+    # --- Plot Generation Loop ---
+    # Define plots to generate along with their requirements
+    plot_definitions = [
+        # Plot Name, Function, Data Source(s) list, Required Columns list, FASTA-only skip reason (str or None)
+        ("Category->Country Sankey", create_category_country_sankey, [df_plot_source], ['category', 'country'], "Requires category/country data"),
+        ("Gene->Country Sankey", create_gene_country_sankey, [df_hssr], ['gene', 'country'], "Requires hssr_data.csv"),
+        ("Motif Repeat Count (Hotspot)", create_hotspot_plot, [df_hotspot], ['motif', 'repeat_count'], "Requires mutational_hotspot.csv"),
+        ("SSR Conservation", create_ssr_conservation_plot, [df_plot_source], ['genomeID', 'loci'], None), # Works in both modes
+        ("Motif Conservation", create_motif_conservation_plot, [df_plot_source], ['genomeID', 'motif'], None), # Works in both modes
+        ("Relative Abundance", create_relative_abundance_plot, [df_plot_source], ['category', 'genomeID', 'length_of_motif', 'length_genome'], "Requires category/length_genome data"),
+        ("Repeat Distribution", create_repeat_distribution_plot, [df_plot_source], ['category', 'genomeID', 'length_of_motif', 'length_genome', 'length_of_ssr'], "Requires category/length_genome data"),
+        ("SSR GC Distribution", create_ssr_gc_plot, [df_plot_source], ['genomeID', 'GC_per'], None), # Works in both modes
+        ("SSR Gene Intersection", create_ssr_gene_intersect_plot, [df_ssr_gene], ['gene', 'ssr_position'], "Requires ssr_genecombo.tsv"),
+        ("Temporal Faceted Scatter", create_temporal_faceted_scatter, [df_hssr], ['motif', 'year', 'length_of_ssr', 'gene', 'genomeID'], "Requires hssr_data.csv"),
+        ("UpSet", create_upset_plot, [df_plot_source], ['motif', 'category', 'genomeID', 'GC_per', 'country'], "Requires category/country data"),
+        ("Motif Distribution Heatmap", create_motif_distribution_heatmap, [df_plot_source], ['genomeID', 'loci'], None), # Works in both modes
+        # Special plots handled separately below: Reference SSR, Gene Motif Dot Plot
+    ]
+
+    # Data source paths for better error messages
+    data_source_paths = {
+        id(df_plot_source): data_source_path,
+        id(df_hssr): hssr_data_path,
+        id(df_hotspot): hotspot_path,
+        id(df_ssr_gene): ssr_gene_path,
+        id(None): "N/A" # Handle None case gracefully
+    }
+
+    # Iterate through the defined plots
+    for plot_name, plot_func, data_sources, required_cols, fasta_skip_reason in plot_definitions:
+        logger.info(f"-> Preparing [bold]{plot_name}[/]. Press Enter within 3s to skip...") # Updated prompt
+
+        # Check for skip key BEFORE attempting to generate the plot
+        time.sleep(3.0) # Give user 3 seconds to press Enter
+        if check_skip_key():
+            # Message is logged inside check_skip_key if 'k' is pressed
+            plot_status[plot_name] = "Skipped (User)"
+            continue # Move to the next plot in the list
+
+        # --- Data and Mode Checks ---
+        skip = False
+        skip_reason = ""
+
+        # Check FASTA-only mode
+        if is_fasta_only_mode and fasta_skip_reason:
+            skip = True
+            skip_reason = f"Skipped ({fasta_skip_reason} - FASTA-only mode)"
+
+        # Check if data sources are available
+        if not skip:
+            for source_df in data_sources:
+                if source_df is None:
+                    source_path = data_source_paths.get(id(source_df), "Unknown Data Source")
+                    base_name = os.path.basename(source_path) if source_path and source_path != "N/A" else "required dataframe"
+                    skip = True
+                    skip_reason = f"Skipped (No Data: {base_name})"
+                    break # No need to check other sources for this plot
+
+        # Check required columns in the primary data source (usually the first one)
+        if not skip and data_sources and data_sources[0] is not None:
+             primary_df = data_sources[0]
+             missing_cols = [col for col in required_cols if col not in primary_df.columns]
+             if missing_cols:
+                 skip = True
+                 skip_reason = f"Skipped (Missing Columns: {missing_cols})"
+
+        # --- Generate or Skip ---
+        if skip:
+            logger.warning(f"   {skip_reason} for {plot_name} plot.")
+            plot_status[plot_name] = skip_reason
+        else:
+            try:
+                logger.info(f"   Generating {plot_name} plot...")
+                # Prepare arguments for the plot function - pass copies
+                plot_args = [df.copy() for df in data_sources if df is not None]
+                plot_args.append(job_output_plots_dir) # Add output dir
+
+                # Call the plot function
+                plot_func(*plot_args) # Unpack arguments
+                logger.info(f"   {plot_name} plot generation complete.")
+                plot_status[plot_name] = "Success"
+            except Exception as e:
+                logger.error(f"   Failed to plot {plot_name}: {e}")
+                logger.debug(traceback.format_exc())
+                plot_status[plot_name] = "Failed"
+
+    # --- Handle Special Plots (Reference SSR, Gene Motif Dot Plot) ---
+
+    # 11. Reference SSR Distribution (Requires ssr_genecombo.tsv and reference_id)
+    plot_name_base = "Reference SSR Distribution"
+    plot_name = f"{plot_name_base} ({reference_id})" if reference_id else plot_name_base
+    logger.info(f"-> Preparing [bold]{plot_name}[/]. Press Enter within 3s to skip...") # Updated prompt
+    time.sleep(3.0) # Give user 3 seconds to press Enter
+    if check_skip_key():
+        # Message logged inside check_skip_key
+        plot_status[plot_name] = "Skipped (User)"
+    elif not reference_id:
+        logger.info(f"-> Skipping {plot_name_base} plot: No reference_id provided.")
+        plot_status[plot_name_base] = "Skipped (No Ref ID)"
+    elif is_fasta_only_mode:
+        logger.info(f"-> Skipping {plot_name} plot: Requires ssr_genecombo.tsv (FASTA-only mode).")
+        plot_status[plot_name] = "Skipped (FASTA-only)"
+    elif df_ssr_gene is None:
+        logger.warning(f"-> Skipping {plot_name} plot: Data not available from {ssr_gene_path}.")
+        plot_status[plot_name] = "Skipped (No Data)"
     else:
-        logger.warning(f"Skipping Category->Country Sankey plot: Data not available.")
+        required_ref_cols = ['genomeID', 'ssr_position']
+        missing_ref = [col for col in required_ref_cols if col not in df_ssr_gene.columns]
+        if missing_ref:
+            logger.warning(f"-> Skipping {plot_name} plot: Missing required columns {missing_ref} in {ssr_gene_path}.")
+            plot_status[plot_name] = "Skipped (Missing Column)"
+        else:
+            try:
+                logger.info(f"   Generating {plot_name} plot...")
+                create_scientific_ssr_plot(df_ssr_gene.copy(), reference_id, job_output_plots_dir)
+                logger.info(f"   {plot_name} plot generation complete.")
+                plot_status[plot_name] = "Success"
+            except Exception as e:
+                logger.error(f"   Failed to plot {plot_name}: {e}")
+                logger.debug(traceback.format_exc())
+                plot_status[plot_name] = "Failed"
 
-    # 2. Gene -> Country Sankey (uses df_hssr)
-    if df_hssr is not None:
-        try:
-            logger.info(f"Generating Gene->Country Sankey plot...")
-            create_gene_country_sankey(df_hssr.copy(), job_output_plots_dir) # Pass copy
-        except Exception as e:
-            logger.error(f"Failed to plot Gene->Country Sankey: {e}\n{traceback.format_exc()}")
+
+    # 14. Gene Motif Count Dot Plot (Requires hssr_data.csv, uses merged for category sorting)
+    plot_name = "SSR Gene Genome Dot Plot" # Update plot name for logging/status
+    logger.info(f"-> Preparing [bold]{plot_name}[/]. Press Enter within 3s to skip...") # Updated prompt
+    time.sleep(3.0) # Give user 3 seconds to press Enter
+    if check_skip_key():
+        # Message logged inside check_skip_key
+        plot_status[plot_name] = "Skipped (User)"
+    elif df_hssr is None:
+         logger.warning(f"-> Skipping {plot_name} plot: Data not available (hssr_data.csv).")
+         plot_status[plot_name] = "Skipped (No Data)"
     else:
-        logger.warning(f"Skipping Gene->Country Sankey plot: Data not available.")
+        # Basic check for required columns in df_hssr (plot function should validate more deeply)
+        required_dot_cols = ['gene', 'motif', 'genomeID'] # Example minimal check
+        missing_dot = [col for col in required_dot_cols if col not in df_hssr.columns]
+        if missing_dot:
+            logger.warning(f"-> Skipping {plot_name} plot: Missing required columns {missing_dot} in {hssr_data_path}.")
+            plot_status[plot_name] = "Skipped (Missing Column)"
+        else:
+            try:
+                logger.info(f"   Generating {plot_name} plot...")
+                # Pass df_plot_source copy if not in FASTA-only mode, otherwise pass None for metadata
+                # Pass reference_id to the plot function (metadata_df removed)
+                create_ssr_gene_genome_dot_plot(df_hssr.copy(), job_output_plots_dir, reference_id)
+                logger.info(f"   {plot_name} plot generation complete.")
+                plot_status[plot_name] = "Success"
+            except Exception as e:
+                logger.error(f"   Failed to plot {plot_name}: {e}")
+                logger.debug(traceback.format_exc())
+                plot_status[plot_name] = "Failed"
 
-    # 3. Motif Repeat Count (uses df_hotspot)
-    if df_hotspot is not None:
-        try:
-            logger.info(f"Generating Motif Repeat Count plot...")
-            create_hotspot_plot(df_hotspot.copy(), job_output_plots_dir) # Pass copy
-        except Exception as e:
-            logger.error(f"Failed to plot Motif Repeat Count: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Motif Repeat Count plot: Data not available.")
 
-    # 4. Loci Conservation Pie Chart (uses df_merged)
-    if df_merged is not None:
-         try:
-             logger.info(f"Generating Loci Conservation plot...")
-             create_loci_conservation_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-         except Exception as e:
-             logger.error(f"Failed to plot Loci Conservation: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Loci Conservation plot: Data not available.")
-
-    # 5. Motif Conservation Pie Chart (uses df_merged)
-    if df_merged is not None:
-         try:
-             logger.info(f"Generating Motif Conservation plot...")
-             if 'motif' in df_merged.columns:
-                 create_motif_conservation_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-             else:
-                 logger.warning(f"Skipping Motif Conservation plot: 'motif' column not found in merged data.")
-         except Exception as e:
-             logger.error(f"Failed to plot Motif Conservation: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Motif Conservation plot: Data not available.")
-
-    # 6. Relative Abundance Bar Chart (uses df_merged)
-    if df_merged is not None:
-        try:
-            logger.info(f"Generating Relative Abundance plot...")
-            # Check required columns specifically for this plot
-            required_ra_cols = ['category', 'genomeID', 'length_of_motif', 'length_genome']
-            if all(col in df_merged.columns for col in required_ra_cols):
-                 create_relative_abundance_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-            else:
-                 missing_ra = [col for col in required_ra_cols if col not in df_merged.columns]
-                 logger.warning(f"Skipping Relative Abundance plot: Missing required columns {missing_ra} in merged data.")
-        except Exception as e:
-            logger.error(f"Failed to plot Relative Abundance: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Relative Abundance plot: Data not available.")
-
-    # 7. Repeat Distribution Bar Chart (uses df_merged)
-    if df_merged is not None:
-        try:
-            logger.info(f"Generating Repeat Distribution plot...")
-            # Check required columns specifically for this plot
-            required_rd_cols = ['category', 'genomeID', 'length_of_motif', 'length_genome', 'length_of_ssr']
-            if all(col in df_merged.columns for col in required_rd_cols):
-                create_repeat_distribution_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-            else:
-                missing_rd = [col for col in required_rd_cols if col not in df_merged.columns]
-                logger.warning(f"Skipping Repeat Distribution plot: Missing required columns {missing_rd} in merged data.")
-        except Exception as e:
-            logger.error(f"Failed to plot Repeat Distribution: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Repeat Distribution plot: Data not available.")
-
-    # 8. SSR GC Distribution Scatter Plot (uses df_merged)
-    if df_merged is not None:
-        try:
-            logger.info(f"Generating SSR GC Distribution plot...")
-            # Check required columns specifically for this plot
-            required_gc_cols = ['genomeID', 'GC_per']
-            if all(col in df_merged.columns for col in required_gc_cols):
-                create_ssr_gc_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-            else:
-                missing_gc = [col for col in required_gc_cols if col not in df_merged.columns]
-                logger.warning(f"Skipping SSR GC Distribution plot: Missing required columns {missing_gc} in merged data.")
-        except Exception as e:
-            logger.error(f"Failed to plot SSR GC Distribution: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping SSR GC Distribution plot: Data not available.")
-
-    # 9. SSR Gene Intersection Plot (uses df_ssr_gene)
-    if df_ssr_gene is not None:
-        try:
-            logger.info(f"Generating SSR Gene Intersection plot...")
-            # Check required columns specifically for this plot
-            required_intersect_cols = ['gene', 'ssr_position']
-            if all(col in df_ssr_gene.columns for col in required_intersect_cols):
-                create_ssr_gene_intersect_plot(df_ssr_gene.copy(), job_output_plots_dir) # Pass copy
-            else:
-                missing_intersect = [col for col in required_intersect_cols if col not in df_ssr_gene.columns]
-                logger.warning(f"Skipping SSR Gene Intersection plot: Missing required columns {missing_intersect} in {ssr_gene_path}.")
-        except Exception as e:
-            logger.error(f"Failed to plot SSR Gene Intersection: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping SSR Gene Intersection plot: Data not available from {ssr_gene_path}.")
-
-    # 10. Temporal Faceted Scatter Plot (uses df_hssr)
-    if df_hssr is not None:
-        try:
-            logger.info(f"Generating Temporal Faceted Scatter plot...")
-            # Check required columns specifically for this plot
-            required_temporal_cols = ['motif', 'year', 'length_of_ssr', 'gene', 'genomeID']
-            if all(col in df_hssr.columns for col in required_temporal_cols):
-                create_temporal_faceted_scatter(df_hssr.copy(), job_output_plots_dir) # Pass copy
-            else:
-                missing_temporal = [col for col in required_temporal_cols if col not in df_hssr.columns]
-                logger.warning(f"Skipping Temporal Faceted Scatter plot: Missing required columns {missing_temporal} in {hssr_data_path}.")
-        except Exception as e:
-            logger.error(f"Failed to plot Temporal Faceted Scatter: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping Temporal Faceted Scatter plot: Data not available from {hssr_data_path}.")
-
-    # 11. Reference SSR Distribution (uses df_ssr_gene, conditional on reference_id)
-    if reference_id and df_ssr_gene is not None:
-        try:
-            logger.info(f"Generating Reference SSR Distribution plot for {reference_id}...")
-            # Check required columns specifically for this plot
-            required_ref_cols = ['genomeID', 'ssr_position']
-            if all(col in df_ssr_gene.columns for col in required_ref_cols):
-                create_scientific_ssr_plot(df_ssr_gene.copy(), reference_id, job_output_plots_dir) # Pass copy and ref_id
-            else:
-                missing_ref = [col for col in required_ref_cols if col not in df_ssr_gene.columns]
-                logger.warning(f"Skipping Reference SSR Distribution plot: Missing required columns {missing_ref} in {ssr_gene_path}.")
-        except Exception as e:
-            logger.error(f"Failed to plot Reference SSR Distribution: {e}\n{traceback.format_exc()}")
-    elif reference_id:
-         logger.warning(f"Skipping Reference SSR Distribution plot: Data not available from {ssr_gene_path}.")
-    else:
-        logger.info("Skipping Reference SSR Distribution plot: No reference_id provided.")
-
-    # 12. UpSet Plot (uses df_merged)
-    if df_merged is not None:
-        try:
-            logger.info(f"Generating UpSet plot...")
-            # Check required columns specifically for this plot (already done inside _prepare_upset_data)
-            create_upset_plot(df_merged.copy(), job_output_plots_dir) # Pass copy
-        except Exception as e:
-            logger.error(f"Failed to plot UpSet Plot: {e}\n{traceback.format_exc()}")
-    else:
-        logger.warning(f"Skipping UpSet plot: Data not available.")
-
+    # (This entire block from line 158 to 451 is replaced by the loop structure above)
 
     # --- Add calls for other plots here, following the same pattern ---
-
-    logger.info(f"Finished plot generation process for data in {job_output_main_dir}.")
+    # --- Plotting Summary ---
+    # Use box style for summary and end markers
+    # Use Rich markup for summary
+    logger.info("[bold magenta]--- Plot Summary ---[/]")
+    for name, status in plot_status.items():
+        if status == "Success":
+            status_markup = f"[bold green]{status}[/]"
+        elif "Skipped" in status:
+            status_markup = f"[yellow]{status}[/]"
+        else: # Failed
+            status_markup = f"[bold red]{status}[/]"
+        logger.info(f"  - {name}: {status_markup}")
+    logger.info("[bold magenta]--------------------[/]")
+    # Stage End marker is now handled by main.py after this function returns
 
 
 # --- Example Usage (for testing purposes) ---
@@ -295,6 +396,8 @@ if __name__ == '__main__':
     test_plots_dir = os.path.join(base_dir, "jobOut", test_job_id, "output", "plots")
     os.makedirs(test_main_dir, exist_ok=True)
     # generate_all_plots will create the plots dir and subdirs
+
+    # [ Removed misplaced heatmap code block that was here ]
 
     # Create dummy input files
     # mergedOut.tsv (needs columns for all plots using it)
@@ -349,6 +452,6 @@ if __name__ == '__main__':
     print(f"Running plot generation. Output will be in subdirectories under: {test_plots_dir}")
 
     # Run the main plotting function (with a dummy reference ID for testing)
-    generate_all_plots(test_main_dir, test_plots_dir, reference_id="g0") # Example reference ID from dummy data
+    generate_all_plots(test_main_dir, test_main_dir.replace("main", "intrim"), test_plots_dir, reference_id="g0") # Added intrim dir path
 
     print("Dummy run complete. Check the output directory and its subdirectories.")

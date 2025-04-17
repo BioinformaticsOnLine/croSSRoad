@@ -213,7 +213,7 @@ def merge_categories(ssr_file, cat_file, stats_file, out_file):
     merged.to_csv(out_file, sep="\t", index=False, na_rep='undefined')
 
 
-def generate_locicons(merged_tsv, tmp_dir, logger):
+def generate_locicons(merged_tsv, intrim_dir, logger): # Renamed to intrim_dir
     """Generate locicons.txt file containing conserved motifs."""
     logger.info("Generating locicons list...")
     
@@ -231,7 +231,7 @@ def generate_locicons(merged_tsv, tmp_dir, logger):
     conserved = motif_counts[motif_counts == total_genomes].index
     
     # Write conserved motifs to file
-    locicons_file = os.path.join(tmp_dir, "locicons.txt")
+    locicons_file = os.path.join(intrim_dir, "locicons.txt") # Use renamed variable
     with open(locicons_file, "w") as file:
         for motif in conserved:
             file.write(motif + "\n")
@@ -267,12 +267,12 @@ def find_longest_common_substring(strings):
     return result
 
 
-def process_flanking_regions(genome_file, locicons_file, tmp_dir, thread_count, logger):
+def process_flanking_regions(genome_file, locicons_file, intrim_dir, thread_count, logger): # Renamed to intrim_dir
     """Process flanking regions and generate pattern summary."""
     logger.info("Processing flanking regions...")
     
     # Generate sequences with flanks
-    nfile = os.path.join(tmp_dir, "flank_sequences.fa")
+    nfile = os.path.join(intrim_dir, "flank_sequences.fa") # Use renamed variable
     with open(locicons_file, 'r') as fh, open(nfile, 'w') as fh2:
         for line_num, line in enumerate(fh, start=1):
             line = line.strip()
@@ -280,7 +280,7 @@ def process_flanking_regions(genome_file, locicons_file, tmp_dir, thread_count, 
             fh2.write(f">{line_num}\n{new_n}{line}{new_n}\n")
 
     # Run seqkit locate
-    flanked_tsv = os.path.join(tmp_dir, "flanked.tsv")
+    flanked_tsv = os.path.join(intrim_dir, "flanked.tsv") # Use renamed variable
     with open(flanked_tsv, 'w') as output_file:
         subprocess.run(
             ['seqkit', 'locate', '-i', '-j', str(thread_count), '-d', '-P', '-f', 
@@ -323,7 +323,7 @@ def process_flanking_regions(genome_file, locicons_file, tmp_dir, thread_count, 
             })
 
     # Write results to CSV
-    pattern_summary = os.path.join(tmp_dir, "pattern_summary.csv")
+    pattern_summary = os.path.join(intrim_dir, "pattern_summary.csv") # Use renamed variable
     with open(pattern_summary, 'w', newline='') as f:
         fieldnames = ['PatternName', 'TotalSeqIDs', 'PatternSize', 'Pattern']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -364,7 +364,7 @@ def main(args=None):
         parser.add_argument("--unfair", type=int, default=50)
         parser.add_argument("--thread", type=int, default=50)
         parser.add_argument("--out", default="output", help="Output directory")
-        parser.add_argument("--tmp", default="tmp", help="Temporary directory")
+        parser.add_argument("--tmp", default="intrim", help="Directory for intermediate files") # Keep arg name as tmp for compatibility, default to intrim
         parser.add_argument("--flanks", action="store_true", help="Process flanking regions")
         args = parser.parse_args()
         # Create default logger if running standalone
@@ -383,21 +383,22 @@ def main(args=None):
     if not hasattr(args, 'unfair'): args.unfair = 50
     if not hasattr(args, 'thread'): args.thread = 50
 
-    # Use the provided tmp directory
-    tmp_dir = args.tmp
+    # Use the provided intermediate directory (passed as 'tmp' from CLI/API)
+    intrim_dir = args.tmp # Assign the value from args.tmp to intrim_dir
     
     # Final output will go directly to main output directory
-    merged_out = os.path.join(args.out, "mergedOut.tsv")
+    merged_out_path = os.path.join(args.out, "mergedOut.tsv")
+    reformatted_path = os.path.join(intrim_dir, "reformatted.tsv") # Define path for reformatted file
     
     # 1. Process and clean FASTA.
-    cleanFasta = os.path.join(tmp_dir, "clean_genome.fa")
+    cleanFasta = os.path.join(intrim_dir, "clean_genome.fa") # Use renamed variable
     logger.info("Cleaning FASTA...")
     clean_fasta(args.fasta, cleanFasta, logger)
 
     # 2. Calculate genome statistics.
     logger.info("Calculating genome stats...")
     stats_df = parse_fasta_stats(cleanFasta)
-    stats_file = os.path.join(tmp_dir, "genome_stats.tsv")
+    stats_file = os.path.join(intrim_dir, "genome_stats.tsv") # Use renamed variable
     stats_df.to_csv(stats_file, sep="\t", index=False)
 
     # Checkpoint 1: Total number of genomes detected
@@ -407,7 +408,7 @@ def main(args=None):
     # 3. Filter genomes.
     logger.info("Filtering genomes...")
     good_ids = filter_genomes(stats_df, args.minLen, args.maxLen, args.unfair)
-    filteredFasta = os.path.join(tmp_dir, "filtered_genomes.fa")
+    filteredFasta = os.path.join(intrim_dir, "filtered_genomes.fa") # Use renamed variable
     extract_filtered_fasta(cleanFasta, good_ids, filteredFasta)
 
     # Checkpoint 2: No of genomes removed
@@ -418,13 +419,13 @@ def main(args=None):
     logger.info(f"No of clean genomes used for comparison: {len(good_ids)}")
 
     # 4. Write PERF parameters.
-    params_file = os.path.join(tmp_dir, "perf_params.txt")
+    params_file = os.path.join(intrim_dir, "perf_params.txt") # Use renamed variable
     write_perf_params(
         args.mono, args.di, args.tri, args.tetra, args.penta, args.hexa, params_file
     )
 
-    # 5. Run PERF in the tmp job directory.
-    perf_out = os.path.join(tmp_dir, "perf_out.tsv")
+    # 5. Run PERF in the intermediate files directory.
+    perf_out = os.path.join(intrim_dir, "perf_out.tsv") # Use renamed variable
     logger.info("Running PERF...")
     run_cmd(
         [
@@ -438,17 +439,17 @@ def main(args=None):
             "-t",
             str(args.thread),
         ],
-        cwd=tmp_dir,
+        cwd=intrim_dir, # Use renamed variable
         logger=logger
     )
 
     # 6. Reformat PERF output.
-    reformatted = os.path.join(tmp_dir, "reformatted.tsv")
-    reformat_perf(perf_out, reformatted)
+    # reformatted path defined earlier
+    reformat_perf(perf_out, reformatted_path)
 
     # Checkpoint 4: No of SSRs Detected in total Genomes
     try:
-        ssr_df = pd.read_csv(reformatted, sep="\t")
+        ssr_df = pd.read_csv(reformatted_path, sep="\t")
         total_ssrs = len(ssr_df)
         logger.info(f"No of SSRs Detected in total Genomes: {total_ssrs}")
     except FileNotFoundError:
@@ -456,26 +457,42 @@ def main(args=None):
     except pd.errors.EmptyDataError:
         logger.error("PERF output is empty. No SSRs detected.")
 
-    # 7. Merge with metadata.
-    merge_categories(reformatted, args.cat, stats_file, merged_out)
-    logger.info(f"Merged output generated at: {merged_out}")
-
-    # 8. Generate locicons list
-    locicons_file = generate_locicons(merged_out, tmp_dir, logger)
-
-    # 9. Process flanking regions if requested
+    # --- Conditional Steps based on Category File ---
+    locicons_file = None
     pattern_summary = None
-    if hasattr(args, 'flanks') and args.flanks:
-        pattern_summary = process_flanking_regions(
-            cleanFasta,  # Use the cleaned FASTA file
-            locicons_file,
-            tmp_dir,
-            args.thread,
-            logger
-        )
+    final_output_file = reformatted_path # Default to reformatted if no categories
+
+    if args.cat and os.path.exists(args.cat):
+        logger.info("Category file provided. Proceeding with merging and further analysis.")
+        # 7. Merge with metadata.
+        merge_categories(reformatted_path, args.cat, stats_file, merged_out_path)
+        logger.info(f"Merged output generated at: {merged_out_path}")
+        final_output_file = merged_out_path # Update final output
+
+        # 8. Generate locicons list (only if merged data exists)
+        locicons_file = generate_locicons(merged_out_path, intrim_dir, logger)
+
+        # 9. Process flanking regions if requested (only if locicons were generated)
+        if hasattr(args, 'flanks') and args.flanks and locicons_file:
+            pattern_summary = process_flanking_regions(
+                cleanFasta,  # Use the cleaned FASTA file
+                locicons_file,
+                intrim_dir,
+                args.thread,
+                logger
+            )
+        elif hasattr(args, 'flanks') and args.flanks:
+             logger.warning("Flanking region processing skipped as locicons file was not generated (likely due to missing category data).")
+
+    else:
+        logger.info("Category file not provided or not found. Skipping merge, locicons, and flanking region analysis.")
+        # The main output is reformatted.tsv in this case.
+        # locicons_file and pattern_summary remain None.
 
     # Return all relevant file paths
-    return merged_out, locicons_file, pattern_summary
+    # Return the path to the main output file (either merged or reformatted)
+    # and the paths to locicons/pattern summary if they were generated.
+    return final_output_file, locicons_file, pattern_summary
 
 
 if __name__ == "__main__":

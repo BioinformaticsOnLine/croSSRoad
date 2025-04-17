@@ -49,7 +49,7 @@ def main(args=None):
         parser.add_argument("--ssrcombo", required=True, help="SSR combo file path")
         parser.add_argument("--jobOut", default="output", help="Output directory")
         parser.add_argument("--reference", help="Reference genome ID")
-        parser.add_argument("--tmp", required=True, help="Temp directory")
+        parser.add_argument("--tmp", required=True, help="Directory for intermediate files") # Keep arg name as tmp
         parser.add_argument("--min_repeat_count", type=int, default=1, help="Minimum repeat count")
         parser.add_argument("--min_genome_count", type=int, default=4, help="Minimum genome count")
         args = parser.parse_args()
@@ -58,13 +58,13 @@ def main(args=None):
 
     # Setup paths
     out_dir = args.jobOut
-    tmp_dir = args.tmp
+    intrim_dir = args.tmp # Assign the value from args.tmp to intrim_dir
     os.makedirs(out_dir, exist_ok=True)
-    os.makedirs(tmp_dir, exist_ok=True)
+    os.makedirs(intrim_dir, exist_ok=True) # Use renamed variable
     files = {
         'hssr': os.path.join(out_dir, "hssr_data.csv"),
-        'all_vars': os.path.join(tmp_dir, "all_variations.csv"),
-        'hotspot': os.path.join(tmp_dir, "mutational_hotspot.csv"),
+        'all_vars': os.path.join(intrim_dir, "all_variations.csv"), # Use renamed variable
+        'hotspot': os.path.join(intrim_dir, "mutational_hotspot.csv"), # Use renamed variable
         'ref_ssr': None
     }
 
@@ -154,17 +154,17 @@ def main(args=None):
     logger.info(f"Found {len(matching_hotspot_rows)} rows in hotspot_df with concat_column matching filtered_single_df")
     
     # Save these matching rows to a CSV file
-    matching_csv_path = os.path.join(tmp_dir, "hotspot_single_matches.csv")
+    matching_csv_path = os.path.join(intrim_dir, "hotspot_single_matches.csv") # Use renamed variable
     matching_hotspot_rows.to_csv(matching_csv_path, index=False)
     logger.info(f"Saved matching rows to: {matching_csv_path}")
 #########
 
     # Save these matching rows to a CSV file
-    repeatvariation_path = os.path.join(tmp_dir, "repeatvariation.csv")
+    repeatvariation_path = os.path.join(intrim_dir, "repeatvariation.csv") # Use renamed variable
     filtered_single_df.to_csv(repeatvariation_path, index=False)
     logger.info(f"Saved matching rows to: {repeatvariation_path}")
      # Save these matching rows to a CSV file
-    cyclical_path = os.path.join(tmp_dir, "cyclical_variation.csv")
+    cyclical_path = os.path.join(intrim_dir, "cyclical_variation.csv") # Use renamed variable
     filtered_hotspot_df.to_csv(cyclical_path, index=False)
     logger.info(f"Saved matching rows to: {cyclical_path}")
     
@@ -181,7 +181,7 @@ def main(args=None):
     
     # Create a copy for the cleaned version (to keep the original intact for HSSR processing)
     mutational_hotspot_df = filtered_hotspot_df.copy()
-    mutational_hotspot_df_path = os.path.join(tmp_dir, "mh_tmp.csv")
+    mutational_hotspot_df_path = os.path.join(intrim_dir, "mh_tmp.csv") # Use renamed variable
     mutational_hotspot_df.to_csv(mutational_hotspot_df_path, index=False)
     # Drop the specified columns from the cleaned version
     columns_to_drop = ['genomeID', 'repeat', 'category', 'country', 'year', 'ssr_position']
@@ -207,7 +207,7 @@ def main(args=None):
     logger.info(f"1. HSSR Data: {os.path.basename(files['hssr'])}")
     if files['ref_ssr']:
         logger.info(f"2. Reference SSR: {os.path.basename(files['ref_ssr'])}")
-    logger.info(f"\nTemp directory: {tmp_dir}")
+    logger.info(f"\nIntermediate files directory: {intrim_dir}") # Use renamed variable
     logger.info(f"1. All variations: {os.path.basename(files['all_vars'])}")
     logger.info(f"2. Mutational hotspots: {os.path.basename(files['hotspot'])}")
 

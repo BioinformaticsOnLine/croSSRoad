@@ -136,10 +136,24 @@ def create_motif_conservation_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Distribution of Motif Categories by Conservation</b>',
+            text='<b>Distribution of Motif Categories by Conservation</b>', # Main title only
             font=title_font, x=0.5, xanchor='center',
             y=1 - (fixed_top_margin / (600 + fixed_top_margin + fixed_bottom_margin)) * 0.5, yanchor='top'
         ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         height=600 + fixed_top_margin + fixed_bottom_margin,
         paper_bgcolor='white',
         plot_bgcolor='white',
@@ -168,14 +182,7 @@ def create_motif_conservation_plot(df, output_dir):
         bgcolor="rgba(255, 255, 255, 0.8)", xanchor='left', yanchor='top'
     )
 
-    signature_y_position = - (fixed_bottom_margin / fig.layout.height) * 0.3 if fig.layout.height else -0.1
-    signature_y_position = max(signature_y_position, -0.12)
-
-    fig.add_annotation(
-        xref="paper", yref="paper", x=0.98, y=signature_y_position,
-        text="<i>Powered by Crossroad</i>", showarrow=False,
-        font=signature_font, align='right', yanchor='top'
-    )
+    # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export ---
     logger.info(f"{plot_name}: Preparing data for CSV export...")

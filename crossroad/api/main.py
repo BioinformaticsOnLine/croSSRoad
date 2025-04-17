@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 import time
@@ -16,12 +17,31 @@ from crossroad.core.logger import setup_logging
 from crossroad.core import m2
 from crossroad.core import gc2
 from crossroad.core import process_ssr_results
-from crossroad.core.plotting import generate_all_plots
+# from crossroad.core.plotting import generate_all_plots # Commented out - Plots handled by frontend
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data",
     version="1.0.0"
 )
+
+# --- Add CORS Middleware ---
+# Define allowed origins (use "*" for development, specific origins for production)
+origins = [
+    "http://localhost", # Base localhost
+    "http://localhost:3000", # Common React dev port
+    "http://localhost:5173", # Common Vite dev port
+    # Add any other ports your frontend might run on
+    "*" # Allow all for broad development - REMOVE/RESTRICT FOR PRODUCTION
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins, # List of allowed origins
+    allow_credentials=True, # Allow cookies (if needed in the future)
+    allow_methods=["*"], # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allow all headers
+)
+# --- End CORS Middleware ---
 
 class PerfParams(BaseModel):
     mono: int = 12
@@ -41,7 +61,7 @@ class PerfParams(BaseModel):
 async def analyze_ssr(
     request: Request,
     fasta_file: UploadFile = File(...),
-    categories_file: UploadFile = File(...),
+    categories_file: Optional[UploadFile] = File(None), # Make categories optional
     gene_bed: Optional[UploadFile] = File(None),
     reference_id: Optional[str] = Form(None),
     perf_params: Optional[str] = Form(None),
@@ -63,21 +83,25 @@ async def analyze_ssr(
         input_dir = os.path.join(job_dir, "input")
         output_dir = os.path.join(job_dir, "output")
         main_dir = os.path.join(output_dir, "main")
-        tmp_dir = os.path.join(output_dir, "tmp")
+        intrim_dir = os.path.join(output_dir, "intrim") # Renamed to intrim_dir
         
         # Create all necessary directories
         os.makedirs(input_dir, exist_ok=True)
         os.makedirs(main_dir, exist_ok=True)
-        os.makedirs(tmp_dir, exist_ok=True)
+        os.makedirs(intrim_dir, exist_ok=True) # Use renamed variable
         
         # Save input files
         fasta_path = os.path.join(input_dir, "all_genome.fa")
-        cat_path = os.path.join(input_dir, "genome_categories.tsv")
-        
+        cat_path = None # Initialize cat_path as None
         with open(fasta_path, "wb") as f:
             shutil.copyfileobj(fasta_file.file, f)
-        with open(cat_path, "wb") as f:
-            shutil.copyfileobj(categories_file.file, f)
+        if categories_file:
+            cat_path = os.path.join(input_dir, "genome_categories.tsv")
+            with open(cat_path, "wb") as f:
+                shutil.copyfileobj(categories_file.file, f)
+            logger.info("Categories file saved.")
+        else:
+            logger.info("Categories file not provided. Proceeding in FASTA-only mode.")
         
         logger.info("Input files saved successfully")
         
@@ -93,9 +117,9 @@ async def analyze_ssr(
         # Module 1: M2 pipeline
         m2_args = argparse.Namespace(
             fasta=fasta_path,
-            cat=cat_path,
-            out=main_dir,    
-            tmp=tmp_dir,
+            cat=cat_path, # Will be None if categories_file was not provided
+            out=main_dir,
+            tmp=intrim_dir, # Pass renamed variable
             flanks=flanks,
             logger=logger,  # Pass logger to m2
             # Add PERF parameters
@@ -127,8 +151,8 @@ async def analyze_ssr(
             gc2_args = argparse.Namespace(
                 merged=merged_out,
                 gene=gene_bed_path,
-                jobOut=main_dir,    
-                tmp=tmp_dir,
+                jobOut=main_dir,
+                tmp=intrim_dir, # Pass renamed variable
                 logger=logger  # Pass logger to gc2
             )
             ssr_combo = gc2.main(gc2_args)
@@ -138,8 +162,8 @@ async def analyze_ssr(
 
             ssr_args = argparse.Namespace(
                 ssrcombo=ssr_combo,
-                jobOut=main_dir,    
-                tmp=tmp_dir,
+                jobOut=main_dir,
+                tmp=intrim_dir, # Pass renamed variable
                 logger=logger,
                 reference=ref_id_to_pass,
                 min_repeat_count=perf_params.min_repeat_count,
@@ -148,21 +172,22 @@ async def analyze_ssr(
 
             process_ssr_results.main(ssr_args)
 
-        # --- Generate Plots ---
-        try:
-            logger.info("Starting post-processing: Generating plots...")
-            plots_output_dir = os.path.join(output_dir, "plots")
-            # main_dir is already defined (line 65)
-            generate_all_plots(main_dir, plots_output_dir, reference_id) # Pass reference_id
-            logger.info("Finished generating plots.")
-        except Exception as plot_err:
-            logger.error(f"An error occurred during plot generation: {plot_err}", exc_info=True)
-            # Logged the error, but continue to zip and return main results
+        # --- Generate Plots (SKIPPED - Handled by Frontend) ---
+        # try:
+        #     logger.info("Starting post-processing: Generating plots...")
+        #     plots_output_dir = os.path.join(output_dir, "plots")
+        #     # main_dir is already defined (line 65)
+        #     generate_all_plots(main_dir, plots_output_dir, reference_id) # Pass reference_id
+        #     logger.info("Finished generating plots.")
+        # except Exception as plot_err:
+        #     logger.error(f"An error occurred during plot generation: {plot_err}", exc_info=True)
+        #     # Logged the error, but continue to zip and return main results
 
-        # Create zip file of results (including plots if generated)
+        # Create zip file of results (data only)
         output_zip = os.path.join(job_dir, "results.zip")
+        # Zip the entire output_dir which contains the 'main' subdir with data files
         shutil.make_archive(output_zip[:-4], 'zip', output_dir)
-        logger.info("Results (including plots) archived successfully")
+        logger.info("Results archived successfully (data only).") # Updated log message
 
         return FileResponse(
             output_zip,

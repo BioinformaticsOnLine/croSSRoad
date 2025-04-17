@@ -167,9 +167,26 @@ def create_gene_country_sankey(df, output_dir):
     fixed_bottom_margin = 80
 
     fig.update_layout(
-        title_text="Genome Distribution: Hotspot Gene → Country",
-        title_font=title_font,
-        title_x=0.5,
+        title=dict(
+            text="Genome Distribution: Hotspot Gene → Country", # Main title only
+            font=title_font,
+            x=0.5,
+            xanchor='center'
+        ),
+        # Add annotation for "Powered by Crossroad"
+        annotations=[
+            dict(
+                text="<i>Powered by Crossroad</i>",
+                x=0.5,
+                y=1.0, # Position below title
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=4), # Small font size
+                xanchor="center",
+                yanchor="top"
+            )
+        ],
         font=node_font,
         height=max(700, num_genes * 25, num_countries * 25),
         paper_bgcolor='white',
@@ -202,17 +219,8 @@ def create_gene_country_sankey(df, output_dir):
     )
 
     # Adjust signature position to be lower
-    signature_y_position = -0.1 # Fixed position below plot area
-
-    fig.add_annotation(
-        xref="paper", yref="paper",
-        x=0.98, y=signature_y_position, # Use fixed y position
-        text="<i>Powered by Crossroad</i>",
-        showarrow=False,
-        font=signature_font,
-        align='right',
-        yanchor='top' # Anchor to the top of the text block
-    )
+    # Add signature - positioned relative to the bottom right corner of the paper
+    # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export ---
     logger.info(f"{plot_name}: Preparing data for CSV export...")
