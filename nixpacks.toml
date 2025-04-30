@@ -5,10 +5,10 @@
 nixPkgs = ["mamba"]
 
 [phases.install]
-# Create a mamba environment with the necessary packages and channels.
-# Use the package name 'crossroad' as you confirmed works with your mamba command.
+# Set environment variable to potentially help with headless graphical issues,
+# then create a mamba environment with necessary packages and channels.
 commands = [
-  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
+  "export QT_QPA_PLATFORM=offscreen && mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
   # Optional: Add commands to verify the installation in the new environment
   "conda run -n crossroad_env which python",
   "conda run -n crossroad_env which crossroad", # Assuming 'crossroad' is an entrypoint/command
@@ -17,6 +17,4 @@ commands = [
 
 [start]
 # Run the start command within the created mamba environment.
-# 'conda run -n env_name command' is the recommended way to execute commands
-# in a specific conda environment from a script.
 cmd = "conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
