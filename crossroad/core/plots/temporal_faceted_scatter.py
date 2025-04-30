@@ -130,20 +130,6 @@ def create_temporal_faceted_scatter(df, output_dir):
             text='<b>Temporal Analysis of SSR Length Distribution by Gene</b>', # Main title only
             font=fonts['title'], x=0.5, xanchor='center', y=0.98
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         paper_bgcolor='white',
         plot_bgcolor='white',
         showlegend=True,
@@ -152,7 +138,7 @@ def create_temporal_faceted_scatter(df, output_dir):
             bgcolor='rgba(255,255,255,0.9)', bordercolor='#2f4f4f', borderwidth=1,
             orientation="v", yanchor="top", y=0.98, xanchor="left", x=1.02
         ),
-        margin=dict(l=80, r=200, t=100, b=80)
+        margin=dict(l=60, r=20, t=100, b=60)
     )
 
     fig.update_xaxes(

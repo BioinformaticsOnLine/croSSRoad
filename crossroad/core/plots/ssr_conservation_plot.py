@@ -159,34 +159,25 @@ def create_ssr_conservation_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Distribution of SSRs by Conservation Level</b>', # Main title only
-            font=title_font, x=0.5, xanchor='center',
-            y=1 - (fixed_top_margin / 600) * 0.5, yanchor='top'
+            text="SSR Conservation Across Representative Taxa",
+            font=dict(size=16),
+            x=0.5,
+            y=0.95
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
-        height=600,
+        xaxis=dict(
+            title='Representative Taxa',
+            tickfont=dict(size=11)
+        ),
+        yaxis=dict(
+            title='Motif',
+            tickfont=dict(size=11)
+        ),
+        margin=dict(l=60, r=60, t=100, b=60),
         paper_bgcolor='white',
         plot_bgcolor='white',
-        showlegend=True,
-        legend=dict(
-            title=dict(text='SSR Category', font=legend_font), font=legend_font, # Changed 'Loci' to 'SSR'
-            orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5,
-            bgcolor='rgba(255,255,255,0.8)', bordercolor='#cccccc', borderwidth=1
-        ),
-        margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
+        height=600,
+        width=800,
+        showlegend=False
     )
 
     # --- Add Annotations ---

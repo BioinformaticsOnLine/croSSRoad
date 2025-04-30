@@ -17,7 +17,7 @@ from .plots.hotspot_plot import create_hotspot_plot
 from .plots.ssr_conservation_plot import create_ssr_conservation_plot # Renamed file and function
 from .plots.motif_conservation_plot import create_motif_conservation_plot
 from .plots.relative_abundance_plot import create_relative_abundance_plot
-from .plots.repeat_distribution_plot import create_repeat_distribution_plot
+from .plots.relative_density_plot import create_repeat_distribution_plot
 from .plots.ssr_gc_plot import create_ssr_gc_plot
 from .plots.ssr_gene_intersect_plot import create_ssr_gene_intersect_plot
 from .plots.temporal_faceted_scatter import create_temporal_faceted_scatter
@@ -219,7 +219,7 @@ def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_pl
         ("SSR Conservation", create_ssr_conservation_plot, [df_plot_source], ['genomeID', 'loci'], None), # Works in both modes
         ("Motif Conservation", create_motif_conservation_plot, [df_plot_source], ['genomeID', 'motif'], None), # Works in both modes
         ("Relative Abundance", create_relative_abundance_plot, [df_plot_source], ['category', 'genomeID', 'length_of_motif', 'length_genome'], "Requires category/length_genome data"),
-        ("Repeat Distribution", create_repeat_distribution_plot, [df_plot_source], ['category', 'genomeID', 'length_of_motif', 'length_genome', 'length_of_ssr'], "Requires category/length_genome data"),
+        ("Relative Density", create_repeat_distribution_plot, [df_plot_source], ['category', 'genomeID', 'length_of_motif', 'length_genome', 'length_of_ssr'], "Requires category/length_genome data"),
         ("SSR GC Distribution", create_ssr_gc_plot, [df_plot_source], ['genomeID', 'GC_per'], None), # Works in both modes
         ("SSR Gene Intersection", create_ssr_gene_intersect_plot, [df_ssr_gene], ['gene', 'ssr_position'], "Requires ssr_genecombo.tsv"),
         ("Temporal Faceted Scatter", create_temporal_faceted_scatter, [df_hssr], ['motif', 'year', 'length_of_ssr', 'gene', 'genomeID'], "Requires hssr_data.csv"),

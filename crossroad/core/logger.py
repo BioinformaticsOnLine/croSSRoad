@@ -12,49 +12,45 @@ def setup_logging(job_id, job_dir, args_namespace=None, console=None): # Accept 
     log_file = os.path.join(job_dir, f"{job_id}.log")
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     
-    # Clear any existing handlers
     root_logger = logging.getLogger()
-    console_handler = None # Keep track of the console handler
+    root_logger.setLevel(logging.INFO)
 
-    if not root_logger.hasHandlers():
-        root_logger.handlers = []
-        root_logger.setLevel(logging.INFO)
+    # --- Handler Management --- 
+    # Remove existing File and Console Handlers to avoid duplication/conflicts
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, (logging.FileHandler, RichHandler, logging.StreamHandler)):
+            # Keep handlers not belonging to these types (e.g., from other libs)
+            root_logger.removeHandler(handler)
+            try:
+                 handler.close()
+            except Exception:
+                 pass # Ignore errors on close, e.g., if already closed
 
-    # Define formatters
-        log_format = '%(asctime)s - %(levelname)s - %(message)s'
-        file_formatter = logging.Formatter(log_format, datefmt='%Y-%m-%d %H:%M:%S')
-        # Removed colorlog formatters and SymbolFormatter class
-    
-    # Create file handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(file_formatter)
-        root_logger.addHandler(file_handler)
+    # --- File Handler --- 
+    log_format = '%(asctime)s - %(levelname)s [%(name)s:%(lineno)d] - %(message)s'
+    file_formatter = logging.Formatter(log_format, datefmt='%Y-%m-%d %H:%M:%S')
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(file_formatter)
+    root_logger.addHandler(file_handler)
 
-        # Use RichHandler for console output
-        # It handles colors, formatting, and tracebacks automatically
-        console_handler = RichHandler(
-            console=console,    # Use the explicitly passed console (stdout)
-            rich_tracebacks=True,
-            markup=True,
-            show_time=False,
-            show_level=True,
-            show_path=True,       # Enable showing file path and line number
-            log_time_format="[%H:%M:%S]" # Simpler time format
-        )
-        # No need to set a formatter for RichHandler
-        root_logger.addHandler(console_handler)
-    else:
-        # Find existing console handler if logger was already configured
-        for handler in root_logger.handlers:
-            # Check for the RichHandler instance
-            if isinstance(handler, RichHandler):
-                console_handler = handler
-                break
-    # Get the specific logger for the job_id, but configuration is done on root
+    # --- Console Handler (Always add RichHandler) ---
+    # Use the passed 'console' object (important for CLI), 
+    # RichHandler defaults if console is None (likely API context)
+    console_handler = RichHandler(
+        console=console, 
+        rich_tracebacks=True,
+        markup=True,
+        show_time=False, 
+        show_level=True,
+        show_path=False, # Keep path off for console to reduce noise
+        log_time_format="[%H:%M:%S]"
+    )
+    root_logger.addHandler(console_handler)
+    # --------------------------
+
     logger = logging.getLogger(job_id)
-    logger.setLevel(logging.INFO)
 
-    # Log initial info
+    # Log initial info (will go to both file and console)
     logger.info(f"Job ID: {job_id}")
     logger.info(f"Log File: {log_file}")
 

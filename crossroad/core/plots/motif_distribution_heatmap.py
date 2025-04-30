@@ -214,7 +214,7 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
     for fmt in ["png"]: # Keep static formats minimal for potentially large plots
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
-            fig.write_image(img_path, scale=1) # Use scale=1 for large plots
+            fig.write_image(img_path,scale=1) # Use scale=1 for large plots
             logger.info(f"Saved {fmt.upper()} plot to {img_path}")
         except ValueError as img_err:
              logger.error(f"Error saving {fmt.upper()} {plot_name}: {img_err}. Ensure 'kaleido' is installed.")

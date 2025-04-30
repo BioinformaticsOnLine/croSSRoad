@@ -1,0 +1,19 @@
+# nixpacks.toml
+[phases.setup]
+# Add any system packages needed by your dependencies here, if any.
+# Example: aptPkgs = ["build-essential", "libpq-dev"]
+nixPkgs = [] # Or use nixPkgs = ["...", "..."]
+
+[phases.install]
+commands = [
+  "pip install --upgrade pip",
+  "pip install --no-cache-dir -r requirements.txt",
+]
+
+[start]
+# Command to start the FastAPI server using uvicorn.
+# It runs the 'app' instance from the 'crossroad.api.main' module.
+# '--host 0.0.0.0' makes it accessible from outside the container.
+# '--port $PORT' uses the port provided by the deployment platform environment variable.
+# '--workers 1' is a safe default, adjust if needed based on performance/platform guidance.
+cmd = "uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"

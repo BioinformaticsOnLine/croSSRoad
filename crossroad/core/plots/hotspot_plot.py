@@ -48,6 +48,9 @@ def create_hotspot_plot(df, output_dir):
         logger.warning(f"{plot_name}: DataFrame is empty after cleaning/filtering. Cannot generate plot.")
         return
 
+    # Get the gene name if there's only one unique gene, otherwise None
+    gene_name = df_proc['gene'].unique()[0] if len(df_proc['gene'].unique()) == 1 else None
+
     # --- Data Preparation ---
     df_plot = df_proc.reset_index(drop=True).reset_index() # Create 'index' column
 
@@ -99,25 +102,13 @@ def create_hotspot_plot(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text='<b>Motif Repeat Count by Gene (Hotspots)</b>', # Main title only
-            font=title_font, x=0.5, xanchor='center',
-            y=1 - (fixed_top_margin / (max(600, total_occurrences * 15 + fixed_top_margin + fixed_bottom_margin))) * 0.4,
+            text=f"SSR Hotspots in {gene_name}" if gene_name else "SSR Hotspots",
+            font=title_font,
+            x=0.5,
+            xanchor='center',
+            y=0.95,
             yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=max(600, total_occurrences * 15 + fixed_top_margin + fixed_bottom_margin),
         font=dict(family="Arial, sans-serif"),
         paper_bgcolor='white',
@@ -140,8 +131,8 @@ def create_hotspot_plot(df, output_dir):
             orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5,
             bgcolor='rgba(255,255,255,0.8)', bordercolor='#cccccc', borderwidth=1
         ),
-        margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
         hovermode='closest',
+        margin=dict(l=60, r=60, t=100, b=60),
         hoverlabel=dict(bgcolor="white", font_size=10, font_family="Arial, sans-serif")
     )
     fig.update_traces(

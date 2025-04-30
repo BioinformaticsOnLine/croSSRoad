@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.1.9",
+    version="0.2.2",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -23,10 +23,13 @@ setup(
         "perf_ssr",
         "plotly>=5.18.0",
         "plotly-upset-hd>=0.0.2",
+        "typer[all]>=0.9.0",      # Typer CLI framework
+        "rich-click>=1.3.0",      # Rich-enhanced Click help
+        "argcomplete>=3.1.1",     # Shell tab-completion
     ],
-    entry_points={
+    entry_points={  # updated to use Typer app entry point
         "console_scripts": [
-            "crossroad=crossroad.cli.main:main",
+            "crossroad=crossroad.cli.main:app",
         ],
     },
     author="Pranjal Pruthi, Preeti Agarwal",
@@ -34,7 +37,7 @@ setup(
     description="A tool for analyzing SSRs in genomic data",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pranjalpruthi/crossroad",
+    url="https://github.com/BioinformaticsOnLine/croSSRoadd",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

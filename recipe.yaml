@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.1.9
+  version: 0.2.2
   python_min: '3.8'
   numpy_version: '1.23'
 
@@ -10,7 +10,7 @@ package:
 
 source:
   path: dist/crossroad_cli-{{ version }}-py3-none-any.whl
-  sha256: 586cd37df730c29ab4d81b659e1aea2d0e3746edf6bbb8b929a3c2e5f485ede3
+  sha256: 9a0c90daec49b7c660d879969029cc32afa6c2492e649cc7ceca380d001ba52c
 
 build:
   noarch: python
@@ -18,7 +18,7 @@ build:
   script: |
     pip install --no-deps --ignore-installed --no-cache-dir crossroad_cli-{{ version }}-py3-none-any.whl
   entry_points:
-    - crossroad = crossroad.cli.main:main
+    - crossroad = crossroad.cli.main:app
   preserve_egg_dir: false
 
 requirements:
@@ -46,6 +46,10 @@ requirements:
     - jitendralab::perf_ssr
     - jitendralab::plotly-upset-hd
     - rich # Added rich for TUI/logging
+    - rich-argparse
+    - typer        # Typer CLI framework (replaced typer[all] with plain typer)
+    - rich-click        # Rich-enhanced Click help
+    - argcomplete       # Shell tab-completion
 
 test:
   imports:

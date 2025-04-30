@@ -116,20 +116,6 @@ def create_ssr_gene_intersect_plot(df, output_dir):
             text='<b>Distribution of SSR Motifs by Gene and Position</b>', # Main title only
             font=title_font, x=0.5, xanchor='center', y=0.97, yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=700,
         barmode='stack',
         paper_bgcolor='white',
@@ -151,7 +137,7 @@ def create_ssr_gene_intersect_plot(df, output_dir):
             font=legend_font, bgcolor='rgba(255,255,255,0.8)',
             bordercolor='#cccccc', borderwidth=1
         ),
-        margin=dict(l=70, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
+        margin=dict(l=60, r=60, t=100, b=60),
         xaxis_rangeslider_visible=False
     )
 

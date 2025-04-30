@@ -173,20 +173,6 @@ def create_relative_abundance_plot(df, output_dir):
             y=1 - (fixed_top_margin / (max(600, len(sorted_categories) * 25 + fixed_top_margin + fixed_bottom_margin))) * 0.5,
             yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=max(600, len(sorted_categories) * 25 + fixed_top_margin + fixed_bottom_margin), # Adjust height based on categories + margins
         barmode='stack',
         paper_bgcolor='white',

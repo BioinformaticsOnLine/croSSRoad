@@ -131,20 +131,6 @@ def create_ssr_gc_plot(df, output_dir):
             text='<b>SSR Distribution and GC Content Across Genomes</b>', # Main title only
             font=title_font, x=0.5, xanchor='center', y=0.95, yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=700,
         paper_bgcolor='white',
         plot_bgcolor='white',
@@ -162,7 +148,7 @@ def create_ssr_gc_plot(df, output_dir):
         hovermode='closest',
         xaxis_rangeslider_visible=False,
         legend=dict(traceorder='normal', font=dict(family='sans-serif', size=10), bgcolor='rgba(255,255,255,0.7)'),
-        margin=dict(l=70, r=50, t=80, b=fixed_bottom_margin)
+        margin=dict(l=60, r=60, t=100, b=60)
     )
 
     # --- Add Annotations ---
