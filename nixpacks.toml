@@ -1,16 +1,16 @@
 # nixpacks.toml
 
 [phases.setup]
-nixPkgs = ["python3"]  # install Python & pip via Nix
+nixPkgs = ["python3"] # It's generally recommended to specify a Python version like python3
 
 [phases.install]
+# Activate the virtual environment created by the Python provider
+# before running the pip install command.
 commands = [
-  "pip install crossroad-cli",  # pull your published CLI
+  ". /opt/venv/bin/activate && pip install crossroad-cli", # pull your published CLI
 ]
 
 [start]
-# Command to start the FastAPI server using uvicorn.
-# It runs the 'app' instance from the 'crossroad.api.main' module.
-# '--host 0.0.0.0' makes it accessible from outside the container.
-# '--port $PORT' uses the port provided by the deployment platform environment variable.
-cmd = "uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
+# Activate the virtual environment before starting the server
+# to ensure uvicorn from the venv is used.
+cmd = ". /opt/venv/bin/activate && uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
