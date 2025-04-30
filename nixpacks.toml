@@ -1,6 +1,10 @@
 [phases.setup]
-nixPkgs = ["python3"]
-envs = ["NIXPACKS_PATH=/opt/venv/bin"]
+nixPkgs = ["python3", "mamba"]  # Install mamba via Nix
+cmds = [
+  # Install crossroad and its dependencies using mamba
+  "mamba install -c jitendralab -c bioconda -c conda-forge crossroad -y"
+]
+envs = ["NIXPACKS_PATH=/opt/conda/bin"]  # Set PATH to include Conda binaries
 
 [start]
 cmd = "uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
