@@ -1,13 +1,10 @@
 # nixpacks.toml
-[phases.setup]
-# Add any system packages needed by your dependencies here, if any.
-# Example: aptPkgs = ["build-essential", "libpq-dev"]
-nixPkgs = ["python3", "python3Packages.pip"] # Ensure Python & pip are available
+# Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
 
 [phases.install]
 commands = [
-  "python3 -m pip install --upgrade pip",
-  "python3 -m pip install --no-cache-dir -r requirements.txt",
+  "pip install --upgrade pip",
+  "pip install --no-cache-dir -r requirements.txt",
 ]
 
 [start]
