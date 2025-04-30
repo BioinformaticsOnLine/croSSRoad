@@ -1,12 +1,12 @@
 # nixpacks.toml
 # Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
 
-[env]
-PATH = "/opt/venv/bin:$PATH"
+[phases.setup]
+nixPkgs = ["python3", "python3Packages.pip"]  # install Python & pip via Nix
 
 [phases.install]
 commands = [
-  "pip install crossroad-cli==0.2.2",
+  "pip install crossroad-cli==0.2.2",  # pull your published CLI
 ]
 
 [start]
