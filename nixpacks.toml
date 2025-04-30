@@ -1,8 +1,5 @@
 # nixpacks.toml
-# Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
-
-[phases.setup]
-nixPkgs = ["python"]  # install Python & pip via Nix
+# Let Python provider auto-detect and install Python & pip
 
 [phases.install]
 commands = [
