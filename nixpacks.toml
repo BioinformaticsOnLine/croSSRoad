@@ -1,16 +1,17 @@
 # nixpacks.toml
 
 [phases.setup]
-nixPkgs = ["python3"] # It's generally recommended to specify a Python version like python3
+nixPkgs = ["python3"] # Install Python executable via Nix
 
 [phases.install]
-# Activate the virtual environment created by the Python provider
-# before running the pip install command.
+# Explicitly create the virtual environment, activate it,
+# and then install your Python dependencies.
 commands = [
-  ". /opt/venv/bin/activate && pip install crossroad-cli", # pull your published CLI
+  "python3 -m venv /opt/venv", # Create the virtual environment
+  ". /opt/venv/bin/activate && pip install crossroad-cli", # Activate and install using pip
 ]
 
 [start]
 # Activate the virtual environment before starting the server
-# to ensure uvicorn from the venv is used.
+# to ensure executables like uvicorn are found within the venv.
 cmd = ". /opt/venv/bin/activate && uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
