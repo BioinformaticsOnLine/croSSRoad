@@ -1,38 +1,23 @@
-# Use a minimal base image with Ubuntu
-FROM ubuntu:22.04
+# Use an image with mamba/conda pre-installed
+FROM mambaforge/mambaforge:latest
 
-# Install basic dependencies and curl for micromamba
-RUN apt-get update && apt-get install -y \
-    curl \
-    bzip2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install micromamba
-RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj -C /usr/local/bin/ bin/micromamba
-
-# Set up micromamba environment
-ENV MAMBA_ROOT_PREFIX=/opt/conda
-RUN micromamba shell init -s bash -p /opt/conda
-
-# Create a conda environment and install crossroad
-RUN micromamba create -n crossroad_env python=3.12 -y && \
-    micromamba run -n crossroad_env micromamba install -c jitendralab -c bioconda -c conda-forge crossroad -y
-
-# Set working directory
+# Set working dir
 WORKDIR /app
 
-# Copy application code
-COPY . /app
+# Install your crossroad tool into the base env
+# (uses the same channels as your conda command)
+RUN mamba install -y \
+      -c jitendralab \
+      -c bioconda \
+      -c conda-forge \
+      crossroad
 
-# Create and set permissions for jobOut directory
-RUN mkdir -p /app/jobOut && \
-    chmod -R 777 /app/jobOut
+# Copy your code (if you also need the repo in the container)
+# COPY . .
 
-# Expose port for FastAPI
+# Expose the port your FastAPI app listens on
 EXPOSE 8000
 
-# Set environment to activate conda
-ENV PATH=/opt/conda/envs/crossroad_env/bin:$PATH
-
-# Command to run the FastAPI application
-CMD ["micromamba", "run", "-n", "crossroad_env", "uvicorn", "crossroad.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Default command: start Uvicorn serving your FastAPI app
+# adjust module path if different
+CMD ["uvicorn", "crossroad.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
