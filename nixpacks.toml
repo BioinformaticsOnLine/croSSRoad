@@ -1,10 +1,8 @@
 # nixpacks.toml
 [phases.setup]
 # Explicitly install Python via Nixpkgs to ensure pip is available in the environment.
-nixPkgs = ["python3"]
+nixPkgs = ["python3", "python3-distutils", "python3Packages.setuptools"]  # Add distutils and setuptools
+envs = ["NIXPACKS_PATH=/opt/venv/bin"]  # Fix $NIXPACKS_PATH warning
 
 [start]
-# Command to start the FastAPI server. Nixpacks' Python provider
-# should handle installing dependencies from pyproject.toml/setup.py
-# and ensure uvicorn from the created virtual environment is in the PATH.
 cmd = "uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
