@@ -2,7 +2,7 @@
 # Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
 
 [phases.setup]
-nixPkgs = ["python3", "python3Packages.pip"]  # install Python & pip via Nix
+nixPkgs = ["python"]  # install Python & pip via Nix
 
 [phases.install]
 commands = [
