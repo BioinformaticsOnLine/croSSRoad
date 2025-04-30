@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.2.2",
+    version="0.2.3",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -26,6 +26,8 @@ setup(
         "typer[all]>=0.9.0",      # Typer CLI framework
         "rich-click>=1.3.0",      # Rich-enhanced Click help
         "argcomplete>=3.1.1",     # Shell tab-completion
+        "numpy", # Added numpy explicitly
+        "pyarrow", # <-- Add pyarrow here
     ],
     entry_points={  # updated to use Typer app entry point
         "console_scripts": [
@@ -43,5 +45,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.9", # Updated Python requirement
 )

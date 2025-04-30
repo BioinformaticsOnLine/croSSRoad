@@ -1,14 +1,13 @@
 {% set name = "crossroad" %}
-{% set version = "0.2.2" %}
-{% set python_min = "3.8" %}
-{% set numpy_version = "1.22" %}
+{% set version = "0.2.3" %}
+{% set python_min = "3.9" %} # Updated Python requirement
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  url: https://files.pythonhosted.org/packages/1e/2e/48c69abc1e3a72a73b7f29a823a602278449fe88221211bb169d63d9f3cf/crossroad_cli-0.2.2-py3-none-any.whl
+  url: https://files.pythonhosted.org/packages/1e/2e/48c69abc1e3a72a73b7f29a823a602278449fe88221211bb169d63d9f3cf/crossroad_cli-0.2.3-py3-none-any.whl
   sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d  # This is the SHA256 of the wheel file
 
 build:
@@ -17,7 +16,7 @@ build:
   script: |
     pip install --no-deps --ignore-installed --no-cache-dir crossroad_cli-{{ version }}-py3-none-any.whl
   entry_points:
-    - crossroad = crossroad.cli.main:main
+    - crossroad = crossroad.cli.main:app # Note: This might need updating to crossroad.cli.main:app if using Typer consistently
   preserve_egg_dir: False
 
 requirements:
@@ -25,13 +24,13 @@ requirements:
     - python {{ python_min }}
     - pip
     - setuptools
-    - numpy {{ numpy_version }}
+    - numpy # Keep numpy here for build host
     - pandas
     - plotly
 
   run:
     - python
-    - numpy {{ numpy_version }}
+    - numpy # Keep numpy here for runtime
     - fastapi
     - uvicorn
     - python-multipart
@@ -39,11 +38,12 @@ requirements:
     - pydantic
     - requests
     - plotly
+    - pyarrow # <-- Add pyarrow here
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
-    - pranjalpruthi::perf_ssr
-    - jitendralab::plotly-upset-hd
+    - pranjalpruthi::perf_ssr # Note: Consider standard channel if possible
+    - jitendralab::plotly-upset-hd # Note: Consider standard channel if possible
     - typer
     - rich-click
     - argcomplete

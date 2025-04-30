@@ -1,8 +1,7 @@
 context:
   name: crossroad
-  version: 0.2.2
-  python_min: '3.8'
-  numpy_version: '1.23'
+  version: 0.2.3
+  python_min: '3.9' # Updated Python requirement
 
 package:
   name: '{{ name|lower }}'
@@ -26,13 +25,13 @@ requirements:
     - 'python {{ python_min }}'
     - pip
     - setuptools
-    - 'numpy {{ numpy_version }}'
+    - numpy # Keep numpy here for build host
     - pandas
     - plotly
 
   run:
     - python
-    - 'numpy {{ numpy_version }}'
+    - numpy # Keep numpy here for runtime
     - fastapi
     - uvicorn
     - python-multipart
@@ -40,6 +39,7 @@ requirements:
     - pydantic
     - requests
     - plotly
+    - pyarrow # <-- Add pyarrow here
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
@@ -81,4 +81,4 @@ about:
 
 extra:
   recipe-maintainers:
-    - pranjalpruthi 
+    - pranjalpruthi
