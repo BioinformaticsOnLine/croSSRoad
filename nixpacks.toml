@@ -1,8 +1,7 @@
 # nixpacks.toml
-# Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
 
 [phases.setup]
-nixPkgs = ["python"]  # install Python & pip via Nix
+nixPkgs = ["python3"]  # install Python & pip via Nix
 
 [phases.install]
 commands = [
@@ -14,5 +13,4 @@ commands = [
 # It runs the 'app' instance from the 'crossroad.api.main' module.
 # '--host 0.0.0.0' makes it accessible from outside the container.
 # '--port $PORT' uses the port provided by the deployment platform environment variable.
-# '--workers 1' is a safe default, adjust if needed based on performance/platform guidance.
 cmd = "uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
