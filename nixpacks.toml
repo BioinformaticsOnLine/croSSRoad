@@ -5,12 +5,13 @@
 nixPkgs = ["curl"]
 
 [phases.install]
-# Download and install Mambaforge, with checks and error handling.
+# Download and install Mambaforge, with robust checks for the download.
 commands = [
-  # Download Mambaforge installer script (-L follows redirects)
-  "curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
-  # Check if the download was successful and the file exists
-  "ls -lh Mambaforge-Linux-x86_64.sh || (echo 'Mambaforge download failed' && exit 1)",
+  # Download Mambaforge installer script (-L follows redirects, -f fails silently on errors)
+  "curl -L -f -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh || (echo 'Curl download failed' && exit 1)",
+  # Check if the downloaded file exists and has a reasonable size (e.g., > 10 MB)
+  "ls -lh Mambaforge-Linux-x86_64.sh || (echo 'Mambaforge installer file not found after curl' && exit 1)",
+  "SIZE=$(stat -c%s Mambaforge-Linux-x86_64.sh) && [ \"$SIZE\" -gt 10000000 ] || (echo \"Mambaforge installer file is too small ($SIZE bytes), download likely failed\" && exit 1)",
   # Make the script executable
   "chmod +x Mambaforge-Linux-x86_64.sh",
   # Run the installer in batch mode, installing to /opt/conda. Add error check.
