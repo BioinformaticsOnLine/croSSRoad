@@ -1,14 +1,23 @@
 # nixpacks.toml
 
 [phases.setup]
-# Install Mamba via Nix. Mamba will handle Python and other dependencies.
-nixPkgs = ["mamba"]
+# We don't need to install mamba or python via Nixpkgs anymore.
+# Mambaforge installer will provide everything.
+nixPkgs = [] # Start with no specific Nix packages
 
 [phases.install]
-# Set environment variable to potentially help with headless graphical issues,
-# then create a mamba environment with necessary packages and channels.
+# Download and install Mambaforge, then create the environment.
 commands = [
-  "export QT_QPA_PLATFORM=offscreen && mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
+  # Download Mambaforge installer script
+  "curl -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
+  # Run the installer in batch mode (-b) and install to /opt/conda (-p)
+  "bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda",
+  # Initialize conda for bash shell
+  ". /opt/conda/etc/profile.d/conda.sh",
+  # Activate the base environment (necessary for subsequent conda/mamba commands)
+  "conda activate base",
+  # Create the crossroad environment using mamba (included in Mambaforge)
+  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
   # Optional: Add commands to verify the installation in the new environment
   "conda run -n crossroad_env which python",
   "conda run -n crossroad_env which crossroad", # Assuming 'crossroad' is an entrypoint/command
@@ -17,4 +26,5 @@ commands = [
 
 [start]
 # Run the start command within the created mamba environment.
-cmd = "conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
+# Use 'conda run' with the environment name to execute the command in that environment.
+cmd = "/opt/conda/bin/conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
