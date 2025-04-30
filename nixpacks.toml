@@ -5,25 +5,36 @@
 nixPkgs = ["curl"]
 
 [phases.install]
-# Download and install Mambaforge, with robust checks for the download.
+# Download and install Mambaforge using a specific, verified URL.
 commands = [
-  # Download Mambaforge installer script (-L follows redirects, -f fails silently on errors)
-  "curl -L -f -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh || (echo 'Curl download failed' && exit 1)",
+  # Download Mambaforge installer script using a specific versioned URL
+  # REMINDER: Replace the URL and filename with the actual latest version from GitHub releases
+  "curl -L -f -O https://github.com/conda-forge/miniforge/releases/download/24.3.1-0/Mambaforge-24.3.1-0-Linux-x86_64.sh || (echo 'Curl download failed' && exit 1)",
+  # Define the downloaded filename as a variable for easier use in subsequent commands
+  "INSTALLER_SCRIPT=Mambaforge-24.3.1-0-Linux-x86_64.sh", # REMINDER: Update filename here
+
   # Check if the downloaded file exists and has a reasonable size (e.g., > 10 MB)
-  "ls -lh Mambaforge-Linux-x86_64.sh || (echo 'Mambaforge installer file not found after curl' && exit 1)",
-  "SIZE=$(stat -c%s Mambaforge-Linux-x86_64.sh) && [ \"$SIZE\" -gt 10000000 ] || (echo \"Mambaforge installer file is too small ($SIZE bytes), download likely failed\" && exit 1)",
+  "ls -lh $INSTALLER_SCRIPT || (echo \"Mambaforge installer file '$INSTALLER_SCRIPT' not found after curl\" && exit 1)",
+  "SIZE=$(stat -c%s $INSTALLER_SCRIPT) && [ \"$SIZE\" -gt 10000000 ] || (echo \"Mambaforge installer file '$INSTALLER_SCRIPT' is too small ($SIZE bytes), download likely failed\" && exit 1)",
+
   # Make the script executable
-  "chmod +x Mambaforge-Linux-x86_64.sh",
+  "chmod +x $INSTALLER_SCRIPT",
+
   # Run the installer in batch mode, installing to /opt/conda. Add error check.
-  "bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda || (echo 'Mambaforge installation script failed' && exit 1)",
+  "bash $INSTALLER_SCRIPT -b -p /opt/conda || (echo 'Mambaforge installation script failed' && exit 1)",
+
   # Check if the installation directory was created
   "ls -lh /opt/conda || (echo '/opt/conda not found after installation' && exit 1)",
+
   # Initialize conda for bash shell
   ". /opt/conda/etc/profile.d/conda.sh || (echo 'Failed to source conda.sh' && exit 1)",
+
   # Activate the base environment
   "conda activate base || (echo 'Failed to activate base environment' && exit 1)",
+
   # Create the crossroad environment using mamba
   "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y || (echo 'Mamba environment creation failed' && exit 1)",
+
   # Optional: Add commands to verify the installation in the new environment
   "conda run -n crossroad_env which python || echo 'Python not found in crossroad_env'",
   "conda run -n crossroad_env which crossroad || echo 'Crossroad executable not found in crossroad_env'",
