@@ -1,9 +1,12 @@
 # nixpacks.toml
-# Let Python provider auto-detect and install Python & pip
+# Removed custom setup; Nixpacks’ Python provider will auto-install Python & pip
+
+[phases.setup]
+nixPkgs = ["python"]  # install Python & pip via Nix
 
 [phases.install]
 commands = [
-  "python -m pip install crossroad-cli",  # pull your published CLI
+  "pip install crossroad-cli",  # pull your published CLI
 ]
 
 [start]
