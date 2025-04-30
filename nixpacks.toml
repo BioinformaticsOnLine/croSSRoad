@@ -3,7 +3,7 @@
 
 [phases.install]
 commands = [
-  "pip install crossroad-cli==0.2.2",  # pull your published CLI
+  "python -m pip install crossroad-cli",  # pull your published CLI
 ]
 
 [start]
