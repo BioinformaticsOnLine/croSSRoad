@@ -1,16 +1,34 @@
 # nixpacks.toml
+
 [phases.setup]
-# Explicitly install Python via Nixpkgs to ensure pip is available.
-nixPkgs = ["python3"]
+# Ensure curl is available for downloading the installer.
+nixPkgs = ["curl"]
 
 [phases.install]
-# Create a virtual environment, activate it, and install the pre-built wheel file.
-# Ensure your dist/ directory containing the wheel is copied into the container.
+# Download and install Mambaforge, with checks and error handling.
 commands = [
-  "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install ./dist/crossroad_cli-0.2.2-py3-none-any.whl",
+  # Download Mambaforge installer script (-L follows redirects)
+  "curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
+  # Check if the download was successful and the file exists
+  "ls -lh Mambaforge-Linux-x86_64.sh || (echo 'Mambaforge download failed' && exit 1)",
+  # Make the script executable
+  "chmod +x Mambaforge-Linux-x86_64.sh",
+  # Run the installer in batch mode, installing to /opt/conda. Add error check.
+  "bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda || (echo 'Mambaforge installation script failed' && exit 1)",
+  # Check if the installation directory was created
+  "ls -lh /opt/conda || (echo '/opt/conda not found after installation' && exit 1)",
+  # Initialize conda for bash shell
+  ". /opt/conda/etc/profile.d/conda.sh || (echo 'Failed to source conda.sh' && exit 1)",
+  # Activate the base environment
+  "conda activate base || (echo 'Failed to activate base environment' && exit 1)",
+  # Create the crossroad environment using mamba
+  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y || (echo 'Mamba environment creation failed' && exit 1)",
+  # Optional: Add commands to verify the installation in the new environment
+  "conda run -n crossroad_env which python || echo 'Python not found in crossroad_env'",
+  "conda run -n crossroad_env which crossroad || echo 'Crossroad executable not found in crossroad_env'",
+  "conda run -n crossroad_env pip list || echo 'Failed to list packages in crossroad_env'",
 ]
 
 [start]
-# Command to start the FastAPI server.
-# Activate the virtual environment to ensure uvicorn from the venv is in the PATH.
-cmd = ". /opt/venv/bin/activate && uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
+# Run the start command within the created mamba environment.
+cmd = "/opt/conda/bin/conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
