@@ -1,17 +1,22 @@
 # nixpacks.toml
 
 [phases.setup]
-nixPkgs = ["python3"] # Install Python executable via Nix
+# Install Mamba via Nix. Mamba will handle Python and other dependencies.
+nixPkgs = ["mamba"]
 
 [phases.install]
-# Explicitly create the virtual environment, activate it,
-# install numpy first, and then install crossroad-cli and its other dependencies,
-# disabling build isolation for the installation process.
+# Create a mamba environment with the necessary packages and channels.
+# Use the package name 'crossroad' as you confirmed works with your mamba command.
 commands = [
-  "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install numpy && pip install --no-build-isolation crossroad-cli",
+  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
+  # Optional: Add commands to verify the installation in the new environment
+  "conda run -n crossroad_env which python",
+  "conda run -n crossroad_env which crossroad", # Assuming 'crossroad' is an entrypoint/command
+  "conda run -n crossroad_env pip list", # List packages in the mamba environment
 ]
 
 [start]
-# Activate the virtual environment before starting the server
-# to ensure executables like uvicorn are found within the venv.
-cmd = ". /opt/venv/bin/activate && uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
+# Run the start command within the created mamba environment.
+# 'conda run -n env_name command' is the recommended way to execute commands
+# in a specific conda environment from a script.
+cmd = "conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
