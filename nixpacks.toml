@@ -6,8 +6,7 @@ PATH = "/opt/venv/bin:$PATH"
 
 [phases.install]
 commands = [
-  "/opt/venv/bin/pip install --upgrade pip",
-  "/opt/venv/bin/pip install --no-cache-dir -r requirements.txt",
+  "pip install crossroad-cli==0.2.2",
 ]
 
 [start]
