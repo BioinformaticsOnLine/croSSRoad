@@ -5,10 +5,10 @@ nixPkgs = ["python3"] # Install Python executable via Nix
 
 [phases.install]
 # Explicitly create the virtual environment, activate it,
-# install numpy first (as a build dependency for biopython),
-# and then install crossroad-cli and its other dependencies.
+# install numpy first, and then install crossroad-cli and its other dependencies,
+# disabling build isolation for the installation process.
 commands = [
-  "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install numpy && pip install crossroad-cli",
+  "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install numpy && pip install --no-build-isolation crossroad-cli",
 ]
 
 [start]
