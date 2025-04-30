@@ -3,28 +3,35 @@
 [phases.setup]
 # We don't need to install mamba or python via Nixpkgs anymore.
 # Mambaforge installer will provide everything.
-nixPkgs = [] # Start with no specific Nix packages
+# Ensure curl is available for downloading. It usually is, but can be added if needed.
+nixPkgs = ["curl"]
 
 [phases.install]
-# Download and install Mambaforge, then create the environment.
+# Download and install Mambaforge, with checks and error handling.
 commands = [
-  # Download Mambaforge installer script
-  "curl -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
-  # Run the installer in batch mode (-b) and install to /opt/conda (-p)
-  "bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda",
+  # Download Mambaforge installer script (-L follows redirects)
+  "curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh",
+  # Check if the download was successful and the file exists
+  "ls -lh Mambaforge-Linux-x86_64.sh || (echo 'Mambaforge download failed' && exit 1)",
+  # Make the script executable (optional but good practice)
+  "chmod +x Mambaforge-Linux-x86_64.sh",
+  # Run the installer in batch mode, installing to /opt/conda.
+  # Add error check to see if the bash script itself fails.
+  "bash Mambaforge-Linux-x86_64.sh -b -p /opt/conda || (echo 'Mambaforge installation script failed' && exit 1)",
+  # Check if the installation directory was created
+  "ls -lh /opt/conda || (echo '/opt/conda not found after installation' && exit 1)",
   # Initialize conda for bash shell
-  ". /opt/conda/etc/profile.d/conda.sh",
+  ". /opt/conda/etc/profile.d/conda.sh || (echo 'Failed to source conda.sh' && exit 1)",
   # Activate the base environment (necessary for subsequent conda/mamba commands)
-  "conda activate base",
+  "conda activate base || (echo 'Failed to activate base environment' && exit 1)",
   # Create the crossroad environment using mamba (included in Mambaforge)
-  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y",
+  "mamba create -n crossroad_env python=3.9 crossroad -c jitendralab -c bioconda -c conda-forge -y || (echo 'Mamba environment creation failed' && exit 1)",
   # Optional: Add commands to verify the installation in the new environment
-  "conda run -n crossroad_env which python",
-  "conda run -n crossroad_env which crossroad", # Assuming 'crossroad' is an entrypoint/command
-  "conda run -n crossroad_env pip list", # List packages in the mamba environment
+  "conda run -n crossroad_env which python || echo 'Python not found in crossroad_env'",
+  "conda run -n crossroad_env which crossroad || echo 'Crossroad executable not found in crossroad_env'",
+  "conda run -n crossroad_env pip list || echo 'Failed to list packages in crossroad_env'",
 ]
 
 [start]
 # Run the start command within the created mamba environment.
-# Use 'conda run' with the environment name to execute the command in that environment.
 cmd = "/opt/conda/bin/conda run -n crossroad_env uvicorn crossroad.api.main:app --host 0.0.0.0 --port $PORT --workers 1"
