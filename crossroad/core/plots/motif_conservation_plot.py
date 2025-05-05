@@ -140,20 +140,6 @@ def create_motif_conservation_plot(df, output_dir):
             font=title_font, x=0.5, xanchor='center',
             y=1 - (fixed_top_margin / (600 + fixed_top_margin + fixed_bottom_margin)) * 0.5, yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=600 + fixed_top_margin + fixed_bottom_margin,
         paper_bgcolor='white',
         plot_bgcolor='white',
@@ -215,7 +201,7 @@ def create_motif_conservation_plot(df, output_dir):
     except Exception as html_err:
         logger.error(f"Failed to save HTML plot {plot_name}: {html_err}\n{traceback.format_exc()}")
 
-    for fmt in ["png", "pdf", "svg"]:
+    for fmt in ["png", "svg"]:
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
             fig.write_image(img_path, scale=3 if fmt == "png" else None)

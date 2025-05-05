@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.2.5",
+    version="0.2.6",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -14,6 +14,7 @@ setup(
     include_package_data=True,
     license="MIT",  # Only one license parameter here
     install_requires=[
+        "numpy", # Added numpy explicitly
         "fastapi",
         "uvicorn",
         "python-multipart",
@@ -23,10 +24,9 @@ setup(
         "perf_ssr",
         "plotly>=5.18.0",
         "plotly-upset-hd>=0.0.2",
-        "typer[all]>=0.9.0",      # Typer CLI framework
+        "typer>=0.9.0",           # Typer CLI framework (removed [all])
         "rich-click>=1.3.0",      # Rich-enhanced Click help
         "argcomplete>=3.1.1",     # Shell tab-completion
-        "numpy", # Added numpy explicitly
         "pyarrow", # <-- Add pyarrow here
         "upsetplot", # <-- Add upsetplot here
     ],

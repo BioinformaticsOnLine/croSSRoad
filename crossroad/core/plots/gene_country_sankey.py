@@ -173,20 +173,6 @@ def create_gene_country_sankey(df, output_dir):
             x=0.5,
             xanchor='center'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         font=node_font,
         height=max(700, num_genes * 25, num_countries * 25),
         paper_bgcolor='white',

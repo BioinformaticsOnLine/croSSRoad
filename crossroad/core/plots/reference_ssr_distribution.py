@@ -122,23 +122,9 @@ def create_scientific_ssr_plot(df, reference_id, output_dir):
     fig.update_layout(
         title=dict(
             text=f'<b>Distribution of SSRs by Position in Reference Genome ({reference_id})</b>', # Main title only
-            font=title_font, x=0.5, xanchor='center', y=0.97, yanchor='top'
+            font=title_font, x=0.5, xanchor='center', y=1 - (fixed_top_margin / (600 + fixed_top_margin + fixed_bottom_margin)) * 0.5, yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
-        height=max(500, len(position_counts) * 25 + fixed_top_margin + fixed_bottom_margin), # Dynamic height
+        height=600 + fixed_top_margin + fixed_bottom_margin,
         paper_bgcolor='white',
         plot_bgcolor='white',
         xaxis=dict(

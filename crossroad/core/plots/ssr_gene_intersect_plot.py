@@ -107,9 +107,18 @@ def create_ssr_gene_intersect_plot(df, output_dir):
     annotation_font = dict(size=9, family="Arial, sans-serif", color='#666666')
     signature_font = dict(size=8, family="Arial, sans-serif", color='#888888', style='italic')
 
-    fixed_bottom_margin = 180
-    fixed_right_margin = 160
-    fixed_top_margin = 100
+    fixed_bottom_margin = 180 # Keep this if x-labels are long
+    fixed_right_margin = 180 # Keep space for annotation
+    fixed_top_margin = 120 # Keep space for title/legend
+    fixed_left_margin = 80 # Keep space for y-axis label
+
+    # Dynamic width calculation
+    num_genes = len(genes)
+    base_width = 800
+    min_width = 700
+    max_width = 4000 # Allow significant width for many genes
+    width_per_gene = 20 # Pixels per gene bar group
+    plot_width = max(min_width, min(max_width, base_width + (num_genes - 20) * width_per_gene))
 
     fig.update_layout(
         title=dict(
@@ -137,7 +146,8 @@ def create_ssr_gene_intersect_plot(df, output_dir):
             font=legend_font, bgcolor='rgba(255,255,255,0.8)',
             bordercolor='#cccccc', borderwidth=1
         ),
-        margin=dict(l=60, r=60, t=100, b=60),
+        margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
+        width=plot_width, # Use dynamic width
         xaxis_rangeslider_visible=False
     )
 
@@ -189,7 +199,7 @@ def create_ssr_gene_intersect_plot(df, output_dir):
     except Exception as html_err:
         logger.error(f"Failed to save HTML plot {plot_name}: {html_err}\n{traceback.format_exc()}")
 
-    for fmt in ["png", "pdf", "svg"]:
+    for fmt in ["png", "svg"]:
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
             fig.write_image(img_path, scale=3 if fmt == "png" else None)

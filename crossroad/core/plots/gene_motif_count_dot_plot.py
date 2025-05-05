@@ -45,6 +45,10 @@ def create_ssr_gene_genome_dot_plot(df_hssr, output_dir, reference_id=None):
         df_plot.dropna(subset=['repeat'], inplace=True)
         df_plot['repeat'] = df_plot['repeat'].astype(int)
 
+        # Ensure gene and genomeID are strings *before* getting unique values
+        df_plot['gene'] = df_plot['gene'].astype(str)
+        df_plot['genomeID'] = df_plot['genomeID'].astype(str)
+
         if df_plot.empty:
             logger.warning("No valid data remaining after cleaning for SSR Gene Genome Dot Plot. Skipping.")
             return
@@ -225,47 +229,44 @@ def create_ssr_gene_genome_dot_plot(df_hssr, output_dir, reference_id=None):
         tick_font = dict(size=10)
         legend_font = dict(size=10)
 
-        # Adaptive plot dimensions based on data size
+
+ # Adaptive plot dimensions based on data size
         num_genomes = len(unique_genomes)
         num_genes = len(unique_genes)
-        
+
         # Base dimensions
         base_width = 1000
-        base_height = 800
-        
-        # Calculate adaptive height with minimum and maximum constraints
-        # This formula scales better for both small and large datasets
-        min_height = 500  # Minimum height in pixels
-        max_height = 3000  # Maximum height in pixels
-        height_per_genome = 30  # Pixels per genome (adjust as needed)
-        
-        # Dynamic height calculation with constraints
-        plot_height = max(min_height, min(max_height, base_height + (num_genomes - 10) * height_per_genome))
-        
+        # base_height = 800 # No longer strictly needed as height is calculated
+
         # Calculate adaptive width
-        min_width = 800  # Minimum width in pixels
+        min_width = 800   # Minimum width in pixels
         max_width = 1800  # Maximum width in pixels
-        width_per_gene = 100  # Pixels per gene (adjust as needed)
-        
-        # Dynamic width calculation with constraints
+        width_per_gene = 100 # Pixels per gene (adjust as needed)
+
         plot_width = max(min_width, min(max_width, base_width + (num_genes - 8) * width_per_gene))
-        
-        # Adjust legend position based on dataset size
-        legend_y_position = -0.15
-        if num_genomes > 30:
-            # For very large datasets, adjust legend positioning
-            legend_y_position = -0.1
-            
-        # Responsive margin calculation
-        margin_left = max(100, min(200, 80 + max([len(g) for g in unique_genomes]) * 6))
-        margin_bottom = max(100, min(200, 80 + max([len(g) for g in unique_genes]) * 3))
+
+        # Define margins first
+        margin_left = max(100, min(200, 80 + max([len(str(g)) for g in unique_genomes]) * 6)) # Ensure string conversion
+        margin_bottom = max(80, min(150, 60 + max([len(str(g)) for g in unique_genes]) * 3)) # Ensure string conversion, Reduced base/max
+        margin_top = 80 # Reduced from 100
+        margin_right = 200 # Increased for vertical legend
+
+        # Calculate adaptive height based on genomes and vertical margins
+        min_height = 400 # Slightly reduced min_height
+        max_height = 2500 # Slightly reduced max_height
+        height_per_genome = 4 # <<< Reduced from 6 >>> Further reduced scaling factor
+        # Add a small constant base height independent of genomes for padding/axes etc.
+        base_vertical_padding = 40
+        calculated_height = margin_top + margin_bottom + base_vertical_padding + num_genomes * height_per_genome
+        plot_height = max(min_height, min(max_height, calculated_height))
+        logger.info(f"Calculated plot height: {calculated_height}, Final plot height: {plot_height}, Num genomes: {num_genomes}")
 
         fig.update_layout(
             title=dict(
-                text=f"{plot_title}<br><sup>{subtitle}</sup>", 
-                x=0.5, 
-                y=0.98, 
-                xanchor='center', 
+                text=f"{plot_title}<br><sup>{subtitle}</sup>",
+                x=0.5,
+                y=0.98,
+                xanchor='center',
                 yanchor='top',
                 font=title_font
             ),
@@ -277,18 +278,21 @@ def create_ssr_gene_genome_dot_plot(df_hssr, output_dir, reference_id=None):
                 categoryarray=unique_genes,
                 tickangle=-45,
                 tickfont=tick_font,
-                automargin=True
+                automargin=True,
+                showline=True, linewidth=1, linecolor='black', mirror=True
             ),
             yaxis=dict(
                 type='category',
                 categoryorder='array',
                 categoryarray=unique_genomes,
                 tickfont=tick_font,
-                automargin=True
+                automargin=True, # Let automargin still handle left margin for labels
+                showline=True, linewidth=1, linecolor='black', mirror=True,
+                range=[-0.5, num_genomes - 0.5] # <<< Explicitly set range to remove padding >>>
             ),
             width=plot_width,
-            height=plot_height,
-            margin=dict(l=margin_left, r=50, t=100, b=margin_bottom),
+            height=plot_height, # Keep using the calculated height
+            margin=dict(l=margin_left, r=margin_right, t=margin_top, b=margin_bottom), # Keep using calculated margins
             hovermode='closest',
             plot_bgcolor='white',
             xaxis_showgrid=False,
@@ -297,11 +301,11 @@ def create_ssr_gene_genome_dot_plot(df_hssr, output_dir, reference_id=None):
             legend=dict(
                 traceorder='grouped',
                 groupclick="toggleitem",
-                orientation="h",
-                yanchor="top", 
-                y=legend_y_position,
-                xanchor="center", 
-                x=0.5,
+                orientation="v",
+                yanchor="top",
+                y=1,
+                xanchor="left",
+                x=1.02,
                 bgcolor='rgba(255,255,255,0.9)',
                 bordercolor='grey',
                 borderwidth=1,
@@ -309,9 +313,6 @@ def create_ssr_gene_genome_dot_plot(df_hssr, output_dir, reference_id=None):
                 font=legend_font,
             ) if legend_traces_added else dict(showlegend=False)
         )
-
-
-
         # --- Save Plot ---
         fig.write_html(html_file)
         logger.info(f"Saved HTML plot: {html_file}")

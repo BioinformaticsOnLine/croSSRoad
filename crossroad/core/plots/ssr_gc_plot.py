@@ -64,10 +64,25 @@ def create_ssr_gc_plot(df, output_dir):
 
     logger.info(f"{plot_name}: Aggregated data for {len(genome_agg)} genomes.")
 
-    # --- Calculate Symbol Size ---
-    min_size = 8
-    size_scaling_factor = 0.5 # Adjust as needed
-    genome_agg['symbolSize'] = np.maximum(min_size, genome_agg['meanGC'] * size_scaling_factor)
+    # --- Calculate Symbol Size (Log scale based on Motif Count) ---
+    min_size = 5
+    max_size = 20
+    min_count = genome_agg['motifCount'].min()
+    max_count = genome_agg['motifCount'].max()
+
+    if max_count > min_count:
+        # Use log scale for counts
+        log_min = np.log10(min_count + 1) # Add 1 to handle count=0 or count=1
+        log_max = np.log10(max_count + 1)
+        if log_max > log_min:
+            genome_agg['symbolSize'] = genome_agg['motifCount'].apply(
+                lambda count: min_size + (max_size - min_size) * (np.log10(count + 1) - log_min) / (log_max - log_min)
+            )
+        else: # Handle case where all counts are the same after log+1
+            genome_agg['symbolSize'] = (min_size + max_size) / 2
+    else: # Handle case where all counts are identical
+        genome_agg['symbolSize'] = (min_size + max_size) / 2
+
     genome_agg['symbolSize'] = genome_agg['symbolSize'].fillna(min_size)
 
     # --- Calculate Summary Statistics ---
@@ -100,55 +115,73 @@ def create_ssr_gc_plot(df, output_dir):
                 ),
                 thickness=15,
                 tickfont=dict(size=10, family="Arial, sans-serif"),
+                x=1.02,
+                xanchor='left'
             ),
             showscale=True,
             opacity=0.8,
             line=dict(width=0.5, color='DarkSlateGrey')
         ),
-        customdata=genome_agg[['meanGC']],
+        customdata=genome_agg[['meanGC', 'motifCount']],
         hovertemplate=(
             "<b>Genome ID:</b> %{x}<br>" +
-            "<b>Number of Motifs:</b> %{y:,}<br>" +
-            "<b>Mean GC%:</b> %{customdata[0]:.2f}%" +
+            "<b>Number of Motifs (Size):</b> %{customdata[1]:,}<br>" +
+            "<b>Mean GC% (Color):</b> %{customdata[0]:.2f}%" +
             "<extra></extra>"
         ),
         name=''
     ))
-
     # --- Customize Layout ---
     logger.info(f"{plot_name}: Customizing layout...")
 
     title_font = dict(size=16, family="Arial Black, Gadget, sans-serif", color='#333333')
     axis_label_font = dict(size=12, family="Arial, sans-serif", color='#444444')
-    tick_font = dict(size=10, family="Arial, sans-serif", color='#555555')
+    tick_font = dict(size=8, family="Arial, sans-serif", color='#555555')
     annotation_font = dict(size=9, family="Arial, sans-serif", color='#666666')
-    signature_font = dict(size=8, family="Arial, sans-serif", color='#888888', style='italic')
+    # signature_font removed as noted in original code
 
-    fixed_bottom_margin = 180
+    # Removed unused fixed_bottom_margin variable
+
+    # Set a moderate width for slightly more spacing
+    plot_width = 1000 # Adjust this value (e.g., 900, 1100, 1200) as needed
+
+    logger.info(f"Setting plot width to {plot_width}px.")
+
 
     fig.update_layout(
         title=dict(
-            text='<b>SSR Distribution and GC Content Across Genomes</b>', # Main title only
+            text='<b>SSR Distribution and GC Content Across Genomes</b>',
             font=title_font, x=0.5, xanchor='center', y=0.95, yanchor='top'
         ),
-        height=700,
+        # --- Key Change: Added moderate width ---
+        width=plot_width,  # Set plot width to 1000px
+        height=700,        # Keep existing height
+        # --- End Key Change ---
         paper_bgcolor='white',
         plot_bgcolor='white',
         xaxis=dict(
-            title=dict(text='Genome ID', font=axis_label_font),
-            type='category', tickangle=-45, automargin=True,
-            tickfont=tick_font, showline=True, linewidth=1, linecolor='black', mirror=True,
-            gridcolor='#eef0f2', zeroline=False,
+            title=None,
+            type='category',
+            tickangle=-45,
+            automargin=True, # Let Plotly adjust margins for labels
+            tickfont=tick_font,
+            showline=True, linewidth=1, linecolor='black', mirror=True,
+            gridcolor='#eef0f2',
+            zeroline=False,
         ),
         yaxis=dict(
             title=dict(text='Number of SSR Motifs', font=axis_label_font),
-            tickfont=tick_font, showline=True, linewidth=1, linecolor='black', mirror=True,
-            gridcolor='#eef0f2', gridwidth=1, tickformat=',d', zeroline=False,
+            tickfont=tick_font,
+            showline=True, linewidth=1, linecolor='black', mirror=True,
+            gridcolor='#eef0f2', gridwidth=1,
+            tickformat=',d',
+            zeroline=False,
         ),
         hovermode='closest',
         xaxis_rangeslider_visible=False,
         legend=dict(traceorder='normal', font=dict(family='sans-serif', size=10), bgcolor='rgba(255,255,255,0.7)'),
-        margin=dict(l=60, r=60, t=100, b=60)
+        # Use slightly increased bottom margin for rotated labels
+        margin=dict(l=60, r=250, t=100, b=120) # Keep bottom margin slightly larger
     )
 
     # --- Add Annotations ---
@@ -158,12 +191,11 @@ def create_ssr_gc_plot(df, output_dir):
                   f"GC Range: {stats['min_gc']:.2f}% - {stats['max_gc']:.2f}%")
 
     fig.add_annotation(
-        xref="paper", yref="paper", x=0.02, y=0.98, text=stats_text,
+        xref="paper", yref="paper", x=1.15, y=0.98, text=stats_text, # <<< Increased x value
         showarrow=False, font=annotation_font, align='left',
         bordercolor="#cccccc", borderwidth=1, borderpad=4,
         bgcolor="rgba(255, 255, 255, 0.8)", xanchor='left', yanchor='top'
     )
-
     # Signature removed, integrated into title
 
     # --- Prepare Data for CSV Export ---
@@ -193,7 +225,7 @@ def create_ssr_gc_plot(df, output_dir):
     except Exception as html_err:
         logger.error(f"Failed to save HTML plot {plot_name}: {html_err}\n{traceback.format_exc()}")
 
-    for fmt in ["png", "pdf", "svg"]:
+    for fmt in ["png", "svg"]:
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
             fig.write_image(img_path, scale=3 if fmt == "png" else None)

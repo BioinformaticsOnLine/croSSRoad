@@ -132,7 +132,7 @@ def create_hotspot_plot(df, output_dir):
             bgcolor='rgba(255,255,255,0.8)', bordercolor='#cccccc', borderwidth=1
         ),
         hovermode='closest',
-        margin=dict(l=60, r=60, t=100, b=60),
+        margin=dict(l=180, r=180, t=100, b=100),
         hoverlabel=dict(bgcolor="white", font_size=10, font_family="Arial, sans-serif")
     )
     fig.update_traces(
@@ -195,7 +195,7 @@ def create_hotspot_plot(df, output_dir):
     except Exception as html_err:
         logger.error(f"Failed to save HTML plot {plot_name}: {html_err}\n{traceback.format_exc()}")
 
-    for fmt in ["png", "pdf", "svg"]:
+    for fmt in ["png", "svg"]:
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
             fig.write_image(img_path, scale=3 if fmt == "png" else None)

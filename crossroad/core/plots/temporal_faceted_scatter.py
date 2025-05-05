@@ -138,7 +138,7 @@ def create_temporal_faceted_scatter(df, output_dir):
             bgcolor='rgba(255,255,255,0.9)', bordercolor='#2f4f4f', borderwidth=1,
             orientation="v", yanchor="top", y=0.98, xanchor="left", x=1.02
         ),
-        margin=dict(l=60, r=20, t=100, b=60)
+        margin=dict(l=60, r=180, t=120, b=60)
     )
 
     fig.update_xaxes(
@@ -208,7 +208,7 @@ def create_temporal_faceted_scatter(df, output_dir):
     except Exception as html_err:
         logger.error(f"Failed to save HTML plot {plot_name}: {html_err}\n{traceback.format_exc()}")
 
-    for fmt in ["png", "pdf", "svg"]:
+    for fmt in ["png", "svg"]:
         try:
             img_path = os.path.join(plot_specific_dir, f"{plot_name}.{fmt}")
             fig.write_image(img_path, scale=2 if fmt == "png" else None) # Use scale=2 for PNG

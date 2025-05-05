@@ -80,12 +80,11 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
     logger.info(f"{plot_name}: Checking for conserved motifs to exclude...")
     # A motif is conserved if it has a count > 0 in every single genome (row)
     conserved_motifs = pivot_df.columns[(pivot_df > 0).all(axis=0)]
-    if not conserved_motifs.empty:
-        num_conserved = len(conserved_motifs)
-        logger.info(f"{plot_name}: Found {num_conserved} conserved motifs to exclude: {', '.join(conserved_motifs)}")
+    num_conserved = len(conserved_motifs)
+    if num_conserved > 0:
+        logger.info(f"{plot_name}: Found and excluding {num_conserved} conserved motifs (present in all genomes).")
         pivot_df = pivot_df.drop(columns=conserved_motifs)
     else:
-        num_conserved = 0
         logger.info(f"{plot_name}: No completely conserved motifs found to exclude.")
 
     if pivot_df.empty or pivot_df.shape[1] == 0:
@@ -159,27 +158,18 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
     plot_height = min(plot_height, 4000) # Max height limit
     plot_width = min(plot_width, 12000) # Increase max width limit further
 
+    # Define fixed margins *before* they are used in title calculation
+    fixed_top_margin = 120
+    fixed_bottom_margin = 150
+    fixed_left_margin = 50
+    fixed_right_margin = 50
 
     fig.update_layout(
         title=dict(
             text=('<b>Motif Counts Across Genomes (Excluding Conserved)</b>' if len(conserved_motifs) > 0 \
                   else '<b>Motif Counts Across Genomes</b>'), # Main title only
-            font=title_font, x=0.5, xanchor='center', y=0.99, yanchor='top' # Slightly higher y position
+            font=title_font, x=0.5, xanchor='center', y=1 - (fixed_top_margin / plot_height) * 0.5, yanchor='top'
         ),
-        # Add annotation for "Powered by Crossroad"
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0, # Position below title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4), # Small font size
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         height=plot_height,
         width=plot_width,
         xaxis_title=dict(text='Motif', font=axis_label_font), # Update x-axis title
@@ -188,7 +178,7 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
         yaxis=dict(tickfont=tick_font, automargin=True),
         paper_bgcolor='white',
         plot_bgcolor='white',
-        margin=dict(l=50, r=50, t=120, b=150) # Keep increased top margin
+        margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin)
     )
 
     # Signature removed, integrated into title

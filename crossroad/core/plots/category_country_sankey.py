@@ -185,24 +185,9 @@ def create_category_country_sankey(df, output_dir):
     fig.update_layout(
         title=dict(
             text=f"{title_text}",  # Just the main title text
-            x=0.5, 
-            xanchor='center', 
-            font=title_font
+            x=0.5,
+            xanchor='center'
         ),
-        # Add a separate annotation for the "Powered by Crossroad" text with smaller font
-        annotations=[
-            dict(
-                text="<i>Powered by Crossroad</i>",
-                x=0.5,
-                y=1.0,  # Position just below the main title
-                xref="paper",
-                yref="paper",
-                showarrow=False,
-                font=dict(size=4),  # Very small font size (3-4)
-                xanchor="center",
-                yanchor="top"
-            )
-        ],
         font=label_font,
         height=max(700, num_categories * 25, num_countries * 25),
         paper_bgcolor='white',
