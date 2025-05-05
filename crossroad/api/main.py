@@ -32,8 +32,7 @@ from crossroad.core import process_ssr_results
 
 # --- Configuration ---
 MAX_CONCURRENT_JOBS = 2 # Example limit - Make this configurable later if needed
-ROOT_DIR = Path(__file__).resolve().parents[2] # Project root for absolute jobOut paths
-
+ROOT_DIR = Path(os.getenv("CROSSROAD_ROOT", Path(__file__).resolve().parents[2]))
 # --- Job Status Enum ---
 class JobStatus(str, Enum):
     QUEUED = "queued"

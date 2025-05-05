@@ -351,6 +351,7 @@ def main(
     
     # Display example commands when run with no arguments
     if len(sys.argv) <= 1:
+        time.sleep(3) # <-- Add the 3-second delay here
         console.print(EXAMPLE_INTRO)
         console.print(EXAMPLE_BASIC)
         console.print(SCENARIO_FASTA_ONLY)

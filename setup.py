@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.2.3",
+    version="0.2.5",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -28,6 +28,7 @@ setup(
         "argcomplete>=3.1.1",     # Shell tab-completion
         "numpy", # Added numpy explicitly
         "pyarrow", # <-- Add pyarrow here
+        "upsetplot", # <-- Add upsetplot here
     ],
     entry_points={  # updated to use Typer app entry point
         "console_scripts": [

@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.2.3
+  version: 0.2.5
   python_min: '3.9' # Updated Python requirement
 
 package:
@@ -50,6 +50,7 @@ requirements:
     - typer        # Typer CLI framework (replaced typer[all] with plain typer)
     - rich-click        # Rich-enhanced Click help
     - argcomplete       # Shell tab-completion
+    - upsetplot # <-- Add upsetplot here
 
 test:
   imports:
