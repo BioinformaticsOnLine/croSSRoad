@@ -70,20 +70,30 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data with job queuing",
-    version="1.1.0", # Version bump
+    version="0.2.7", # Version bump
     lifespan=lifespan # Add lifespan manager
 )
 
-# Add CORS middleware
-origins = [
-    "http://localhost", # Base localhost
-    "http://localhost:3000", # Common React dev port
-    "http://localhost:5173", # Common Vite dev port
-    "*" # Allow all for broad development - REMOVE/RESTRICT FOR PRODUCTION
-]
+# --- CORS Configuration ---
+# Read allowed origins from environment variable, default to common local dev ports
+# Set CORS_ALLOWED_ORIGINS as a comma-separated string, e.g., "https://frontend.com,http://localhost:3000"
+allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://localhost:5173")
+origins = [origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()]
+
+# Add "*" if you need broad access during debugging, but be cautious in production, especially with credentials.
+# origins.append("*")
+# Example: Add specific production/staging domains
+# origins.extend([
+#     "https://cw.pranjal.work",
+#     "https://cwb.pranjal.work",
+#     "https://crossroad.bioinformaticsonline.com"
+# ])
+
+print(f"Configuring CORS for origins: {origins}") # Log the origins being used
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins, # Use the dynamically configured list
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -366,6 +376,10 @@ def dataframe_to_arrow_bytes(df: pd.DataFrame) -> bytes:
         raise
 
 
+@app.get("/health", tags=["Health Check"])
+async def health_check():
+    """Simple health check endpoint to verify the API is running."""
+    return JSONResponse(content={"status": "ok", "message": "CrossRoad API is operational."})
 # --- API Endpoints ---
 
 @app.post("/analyze_ssr/", status_code=202)

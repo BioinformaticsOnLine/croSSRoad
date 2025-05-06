@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.2.6
+  version: 0.2.7
   python_min: '3.9' # Updated Python requirement
 
 package:
