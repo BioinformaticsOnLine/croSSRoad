@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data with job queuing",
-    version="0.2.7", # Version bump
+    version="0.3.3", # Version bump
     lifespan=lifespan # Add lifespan manager
 )
 
@@ -152,18 +152,18 @@ async def load_persistent_statuses():
 
 # --- Performance Parameters Model ---
 class PerfParams(BaseModel):
-    mono: int = 12
-    di: int = 4
-    tri: int = 3
+    mono: int = 10
+    di: int = 6
+    tri: int = 4
     tetra: int = 3
-    penta: int = 3
+    penta: int = 2
     hexa: int = 2
-    minLen: int = 156000
+    minLen: int = 1000
     maxLen: int = 10000000
-    unfair: int = 50
+    unfair: int = 0
     thread: int = 50
     min_repeat_count: int = 1
-    min_genome_count: int = 5
+    min_genome_count: int = 2
 
 # --- Queue Consumer Task ---
 async def queue_consumer():
@@ -319,12 +319,18 @@ def run_analysis_pipeline(
         logger.info(f"M2 pipeline completed for job {job_id}. Merged output: {merged_out}")
         update_status_sync("M2 complete. Checking for GC2...", 0.4)
 
-        if pattern_summary and os.path.exists(pattern_summary):
-            try:
-                shutil.copy2(pattern_summary, os.path.join(main_dir, "pattern_summary.csv"))
-                logger.info("Pattern summary generated and copied")
-            except Exception as copy_err:
-                 logger.warning(f"Failed to copy pattern summary: {copy_err}")
+        # pattern_summary is now generated directly in output/main/flanks by m2.py
+        # No need to copy it anymore.
+        # if pattern_summary and os.path.exists(pattern_summary):
+        #     try:
+        #         # Define the target directory
+        #         flanks_dir = os.path.join(main_dir, "flanks")
+        #         os.makedirs(flanks_dir, exist_ok=True)
+        #         target_path = os.path.join(flanks_dir, "pattern_summary.csv")
+        #         shutil.copy2(pattern_summary, target_path)
+        #         logger.info(f"Pattern summary generated and copied to {target_path}")
+        #     except Exception as copy_err:
+        #          logger.warning(f"Failed to copy pattern summary: {copy_err}")
 
         # --- Module 2: GC2 pipeline ---
         ssr_combo = None
@@ -550,6 +556,7 @@ async def get_plot_data(job_id: str, plot_key: str):
     job_dir = ROOT_DIR / "jobOut" / job_id
     main_dir = job_dir / "output" / "main"
     intrim_dir = job_dir / "output" / "intrim"
+    flanks_dir = main_dir / "flanks" # Define flanks directory path
     file_path = None
     read_func = pd.read_csv
     read_kwargs = {'low_memory': False}
@@ -571,18 +578,26 @@ async def get_plot_data(job_id: str, plot_key: str):
         "temporal_faceted_scatter": [os.path.join(main_dir, 'hssr_data.csv')],
         "gene_motif_dot_plot": [os.path.join(main_dir, 'hssr_data.csv')],
         "reference_ssr_distribution": [os.path.join(main_dir, 'ssr_genecombo.tsv')],
+        # Add new keys for flanking data
+        "flanked_data": [os.path.join(flanks_dir, 'flanked.tsv')],
+        "pattern_summary": [os.path.join(flanks_dir, 'pattern_summary.csv')],
     }
-    tsv_files = ['mergedOut.tsv', 'reformatted.tsv', 'ssr_genecombo.tsv']
+    # Add flank files to the list requiring tab separation
+    tsv_files = ['mergedOut.tsv', 'reformatted.tsv', 'ssr_genecombo.tsv', 'flanked.tsv']
+    # CSV files (default separator)
+    csv_files = ['pattern_summary.csv'] # Add pattern summary here
 
     possible_paths = plot_file_map.get(plot_key)
     if not possible_paths:
          raise HTTPException(status_code=404, detail=f"Unknown plot key: '{plot_key}'")
 
-    for p in possible_paths:
-        if os.path.exists(p):
+    for p_str in possible_paths: # Iterate over string paths
+        p = Path(p_str) # Convert to Path object for easier handling
+        if p.exists():
             file_path = p
-            if os.path.basename(file_path) in tsv_files:
+            if p.name in tsv_files:
                 read_kwargs['sep'] = '\t'
+            # No need for specific check for csv_files, as default is comma
             break
 
     if not file_path:

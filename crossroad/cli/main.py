@@ -12,6 +12,9 @@ from typing import Optional, Annotated # Added for type hinting
 # Ensure argparse.Namespace is available if core modules require it
 from argparse import Namespace
 
+# --- Version ---
+__version__ = "0.3.3" # Define the version here
+
 # Typer and Rich-related imports
 import typer
 import rich_click as click # Import rich-click
@@ -49,10 +52,10 @@ click.rich_click.OPTION_GROUPS = {
             "name": "PERF SSR Detection Parameters",
             "options": ["--mono", "--di", "--tri", "--tetra", "--penta", "--hexa"],
         },
-        {
-            "name": "Filtering Parameters",
-            "options": ["--min-len", "--max-len", "--unfair", "--min-repeat-count", "--min-genome-count"],
-        },
+            {
+                "name": "Filtering Parameters",
+                "options": ["--min-len", "--max-len", "--unfair", "--repeat-threshold", "--genome-threshold"],
+            },
         {
             "name": "Performance & Output",
             "options": ["--threads", "--plots", "--intrim-dir"],
@@ -68,20 +71,19 @@ from crossroad.core.logger import setup_logging
 # from crossroad.core.plotting import generate_all_plots
 # import textwrap # No longer needed for argparse formatting
 
-# Rich Logo & Welcome (Recreated using Rich Text)
-# Note: Exact spacing might need slight adjustments when rendered
+# Rich Logo & Welcome (Updated to include details within the logo)
 LOGO_TEXT = Text.assemble(
     ("    ┌─┐┬─┐┌─┐╔═╗╔═╗╦═╗┌─┐┌─┐┌┬┐\n", "bold cyan"),
     ("    │  ├┬┘│ │╚═╗╚═╗╠╦╝│ │├─┤ ││\n", "bold cyan"),
-    ("    └─┘┴└─└─┘╚═╝╚═╝╩╚═└─┘┴ ┴─┴┘", "bold cyan"),    # Add the styled name below the art
-
-    # Highlight SSR in the citation line
+    ("    └─┘┴└─└─┘╚═╝╚═╝╩╚═└─┘┴ ┴─┴┘\n", "bold cyan"),
+    (f"    Version: {__version__}\n\n", "green"),  # Added version here
+    # Citation and other details below the logo
     ("    Citation - cro", "dim white"),
-    ("SSR", "bold yellow"), # Highlighted SSR
+    ("SSR", "bold yellow"),
     ("oad: a tool to cross-compare SSRs across species and families\n", "dim white"),
     ("    License: Creative Commons License\n", "dim white"),
-    ("    Authors: Preeti Agarwal, Pranjal Pruthi, Jitendra Narayan, Sahil Mahfooz \n", "dim white"),
-    style="white" # Default style
+    ("    Authors: Preeti Agarwal, Pranjal Pruthi, Jitendra Narayan, Sahil Mahfooz\n", "dim white"),
+    style="white"
 )
 
 WELCOME_PANEL = Panel(
@@ -163,7 +165,7 @@ SCENARIO_ADVANCED = Panel(
 EXAMPLE_REAL = Panel(
     Text(
         "crossroad -i /Users/pranjalpruthi/Documents/GitHub/cr_test/mpox -p",
-        style="bold green", 
+        style="bold green",
         justify="left"
     ),
     title="[bold blue]Real-World Example[/]",
@@ -186,10 +188,18 @@ QUOTES = [
    "Decoding repetitive elements...",
    "Almost there...",
    "Just a moment...",
+   "Having a break, be back soon...",
 ]
 
 # Initialize Rich Console
 console = Console()
+
+# --- Version Callback Function ---
+def version_callback(value: bool):
+    """Prints version info and exits."""
+    if value:
+        console.print(LOGO_TEXT)
+        raise typer.Exit()
 
 # --- Typer Application Setup ---
 app = typer.Typer(
@@ -206,10 +216,11 @@ Use `crossroad --help` for detailed options.
   cro[bold yellow]SSR[/]oad: a tool to cross-compare SSRs across species and families
 
 [bold blue]Documentation:[/] https://github.com/BioinformaticsOnLine/croSSRoad
-"""
+""",
+    # Removed version parameter due to TypeError in older Typer versions
 )
 
-    # Symbols for Log Levels (Defined inside main)
+# Symbols for Log Levels (Defined inside main)
 LOG_SYMBOLS = {
         logging.INFO: "[bold green]🟢[/]",
         logging.WARNING: "[bold yellow]🟡[/]",
@@ -236,6 +247,16 @@ def check_dir_exists(path: Optional[Path]) -> Optional[Path]:
     help="Run the main croSSRoad analysis pipeline." # Short help for the command itself
 )
 def main(
+    # --- Version Info Option ---
+    version_info: Annotated[Optional[bool], typer.Option(
+        "-v", "--version", # Short and long flag
+        help="Show version, logo, citation, and links.",
+        callback=version_callback, # Call the custom function
+        is_flag=True, # This is a flag, no value needed
+        expose_value=False, # Don't pass the value to main()
+        is_eager=True, # Process this flag early
+    )] = None, # Default value is None, callback handles True
+
     # --- Input Files Group ---
     input_dir: Annotated[Optional[Path], typer.Option(
         "-i", "--input-dir", # Ensure short flag first
@@ -298,42 +319,42 @@ def main(
 
     # --- Filtering Parameters Group ---
     min_len: Annotated[int, typer.Option(
-        "-l", "--min-len", 
-        help="Minimum genome length for filtering.", 
+        "-l", "--min-len",
+        help="Minimum genome length for filtering.",
         rich_help_panel="Filtering Parameters"
     )] = 1000,
     max_len: Annotated[int, typer.Option(
-        "-L", "--max-len", 
-        help="Maximum genome length for filtering.", 
+        "-L", "--max-len",
+        help="Maximum genome length for filtering.",
         rich_help_panel="Filtering Parameters"
     )] = 10000000,
     unfair: Annotated[int, typer.Option(
-        "-u", "--unfair", 
-        help="Maximum number of N's allowed per genome for Crossroad analysis.", 
+        "-u", "--unfair",
+        help="Maximum number of N's allowed per genome for Crossroad analysis.",
         rich_help_panel="Filtering Parameters"
     )] = 0,
     min_repeat_count: Annotated[int, typer.Option(
-        "-rc", "--min-repeat-count", # Ensure short flag first
-        help="Minimum repeat count for hotspot filtering (keeps records > this value).",
+        "-rc", "--repeat-threshold", # Changed long flag name
+        help="Repeat count Threshold for hotspot filtering (keeps records > this value).",
         rich_help_panel="Filtering Parameters"
     )] = 1,
     min_genome_count: Annotated[int, typer.Option(
-        "-g", "--min-genome-count", # Ensure short flag first
-        help="Minimum genome count for hotspot filtering (keeps records > this value).",
+        "-g", "--genome-threshold", # Changed long flag name
+        help="Genome count Threshold for hotspot filtering (keeps records > this value).",
         rich_help_panel="Filtering Parameters"
     )] = 4,
 
     # --- Performance & Output Group ---
     threads: Annotated[int, typer.Option(
-        "-t", "--threads", 
-        help="Number of threads for Crossroad analysis.", 
+        "-t", "--threads",
+        help="Number of threads for Crossroad analysis.",
         rich_help_panel="Performance & Output"
     )] = 50,
     plots: Annotated[bool, typer.Option(
         "-p", "--plots", # Short flag first
         help="Enable plot generation.", rich_help_panel="Performance & Output"
         )] = False,
-    intrim_dir_name: Annotated[str, typer.Option( 
+    intrim_dir_name: Annotated[str, typer.Option(
         "--intrim-dir", # No short flag
         help="Name for the intermediate files directory (within the main job output dir).",
         rich_help_panel="Performance & Output",
@@ -348,7 +369,7 @@ def main(
     # Restructuring logic to separate file selection from pipeline execution
     console.print(LOGO_TEXT) # Print the logo using Rich
     console.print(WELCOME_PANEL) # Print the welcome panel using Rich
-    
+
     # Display example commands when run with no arguments
     if len(sys.argv) <= 1:
         time.sleep(3) # <-- Add the 3-second delay here
@@ -377,19 +398,19 @@ def main(
 
     # ----- Phase 1: File Selection Phase -----
     console.print(Rule("[bold blue]Phase 1: Input File Selection", style="blue"))
-    
+
     if input_dir:
         console.print(f"[bold]Scanning directory:[/] {input_dir}", markup=True)
-        
+
         # Find FASTA files in the input directory (*.fa, *.fasta, *.fna)
         fasta_files = list(input_dir.glob("*.fa")) + list(input_dir.glob("*.fasta")) + list(input_dir.glob("*.fna"))
-        
+
         # Find TSV files for categories (*.tsv)
         tsv_files = list(input_dir.glob("*.tsv"))
-        
+
         # Find BED files for genes (*.bed)
         bed_files = list(input_dir.glob("*.bed"))
-        
+
         # Handle FASTA file (required)
         if len(fasta_files) == 0:
             console.print(f"[bold red]Error:[/] No FASTA files (*.fa, *.fasta, *.fna) found in {input_dir}", markup=True)
@@ -402,21 +423,21 @@ def main(
             console.print(f"[bold yellow]Multiple FASTA files found in {input_dir}. Please select one:[/]", markup=True)
             for i, f in enumerate(fasta_files):
                 console.print(f"  {i+1}. {f.name}")
-            
+
             choice = -1
             while choice < 1 or choice > len(fasta_files):
                 try:
                     choice = int(input(f"Enter selection (1-{len(fasta_files)}): "))
                 except ValueError:
                     console.print("[bold red]Please enter a valid number.[/]", markup=True)
-            
+
             fasta_path = fasta_files[choice-1]
             console.print(f"[bold green]Selected FASTA file:[/] {fasta_path.name}", markup=True)
-        
+
         # Handle Categories TSV file (optional)
         if categories:  # User specified --categories explicitly
             console.print(f"[yellow]Warning:[/] `--categories` ('{categories}') ignored because `--input-dir` ('{input_dir}') was provided.", markup=True)
-        
+
         if len(tsv_files) == 0:
             console.print(f"[dim]Info: No TSV files (*.tsv) found in {input_dir}. Proceeding without category data.[/]", markup=True)
             cat_path = None
@@ -429,25 +450,25 @@ def main(
             console.print("  0. None (skip categories)")
             for i, f in enumerate(tsv_files):
                 console.print(f"  {i+1}. {f.name}")
-            
+
             choice = -1
             while choice < 0 or choice > len(tsv_files):
                 try:
                     choice = int(input(f"Enter selection (0-{len(tsv_files)}): "))
                 except ValueError:
                     console.print("[bold red]Please enter a valid number.[/]", markup=True)
-            
+
             if choice == 0:
                 cat_path = None
                 console.print("[dim]No categories file selected.[/]", markup=True)
             else:
                 cat_path = tsv_files[choice-1]
                 console.print(f"[bold green]Selected categories file:[/] {cat_path.name}", markup=True)
-        
+
         # Handle Gene BED file (optional)
         if gene_bed:  # User specified --gene-bed explicitly
             console.print(f"[yellow]Warning:[/] `--gene-bed` ('{gene_bed}') ignored because `--input-dir` ('{input_dir}') was provided.", markup=True)
-        
+
         if len(bed_files) == 0:
             console.print(f"[dim]Info: No BED files (*.bed) found in {input_dir}. Proceeding without gene data.[/]", markup=True)
             gene_bed_path_resolved = None
@@ -460,14 +481,14 @@ def main(
             console.print("  0. None (skip gene analysis)")
             for i, f in enumerate(bed_files):
                 console.print(f"  {i+1}. {f.name}")
-            
+
             choice = -1
             while choice < 0 or choice > len(bed_files):
                 try:
                     choice = int(input(f"Enter selection (0-{len(bed_files)}): "))
                 except ValueError:
                     console.print("[bold red]Please enter a valid number.[/]", markup=True)
-            
+
             if choice == 0:
                 gene_bed_path_resolved = None
                 console.print("[dim]No gene BED file selected.[/]", markup=True)
@@ -498,7 +519,7 @@ def main(
     # ----- Phase 2: Confirmation -----
     console.print("")
     console.print(Rule("[bold blue]Phase 2: Confirmation", style="blue"))
-    
+
     # Summarize selected files
     console.print(Panel(
         "\n".join([
@@ -509,7 +530,7 @@ def main(
         title="[bold]Selected Files[/]",
         border_style="green"
     ), markup=True)
-    
+
     # Ask for confirmation
     if input_dir:  # Only ask for confirmation when using input_dir mode
         console.print("\nReady to proceed with analysis using the selected files.", markup=True)
@@ -517,11 +538,11 @@ def main(
         if proceed == 'q':
             console.print("[yellow]Analysis cancelled by user.[/]", markup=True)
             raise typer.Exit(code=0)
-    
+
     # ----- Phase 3: Analysis Execution -----
     console.print("")
     console.print(Rule("[bold blue]Phase 3: Analysis Execution", style="blue"))
-    
+
     # Create job ID and setup directories using the specified output base directory
     start_time = time.time() # Record start time
     job_id = f"job_{int(time.time() * 1000)}"
@@ -748,9 +769,9 @@ def main(
         logger.critical(f"{LOG_SYMBOLS[logging.CRITICAL]} [bold bright_red]ANALYSIS HALTED DUE TO INVALID PARAMETERS OR FILE ISSUES.[/]")
         # Re-raise typer.Exit to ensure proper exit code handling by Typer
         if not isinstance(e, typer.Exit): # Ensure we exit if it was just BadParameter
-             raise typer.Exit(code=1)
+            raise typer.Exit(code=1)
         else:
-             raise e # Re-raise the original Exit exception
+            raise e # Re-raise the original Exit exception
     except Exception as e:
         logger.error(f"An unexpected error occurred: {str(e)}", exc_info=True) # Log full traceback
         logger.critical(f"{LOG_SYMBOLS[logging.CRITICAL]} [bold bright_red]ANALYSIS FAILED UNEXPECTEDLY[/]")

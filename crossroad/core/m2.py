@@ -267,23 +267,27 @@ def find_longest_common_substring(strings):
     return result
 
 
-def process_flanking_regions(genome_file, locicons_file, intrim_dir, thread_count, logger): # Renamed to intrim_dir
-    """Process flanking regions and generate pattern summary."""
+def process_flanking_regions(genome_file, locicons_file, main_out_dir, intrim_dir, thread_count, logger):
+    """Process flanking regions and generate pattern summary, saving to main output."""
     logger.info("Processing flanking regions...")
-    
-    # Generate sequences with flanks
-    nfile = os.path.join(intrim_dir, "flank_sequences.fa") # Use renamed variable
+
+    # Define the output directory for flank files within the main output
+    flanks_out_dir = os.path.join(main_out_dir, "flanks")
+    os.makedirs(flanks_out_dir, exist_ok=True) # Ensure the directory exists
+
+    # Generate sequences with flanks (still uses intrim for temp file)
+    nfile = os.path.join(intrim_dir, "flank_sequences.fa")
     with open(locicons_file, 'r') as fh, open(nfile, 'w') as fh2:
         for line_num, line in enumerate(fh, start=1):
             line = line.strip()
             new_n = 'N' * 10
             fh2.write(f">{line_num}\n{new_n}{line}{new_n}\n")
 
-    # Run seqkit locate
-    flanked_tsv = os.path.join(intrim_dir, "flanked.tsv") # Use renamed variable
+    # Run seqkit locate, outputting to the new flanks directory
+    flanked_tsv = os.path.join(flanks_out_dir, "flanked.tsv") # Save to main/flanks/
     with open(flanked_tsv, 'w') as output_file:
         subprocess.run(
-            ['seqkit', 'locate', '-i', '-j', str(thread_count), '-d', '-P', '-f', 
+            ['seqkit', 'locate', '-i', '-j', str(thread_count), '-d', '-P', '-f',
              nfile, genome_file],
             stdout=output_file, 
             check=True
@@ -322,9 +326,9 @@ def process_flanking_regions(genome_file, locicons_file, intrim_dir, thread_coun
                 'Pattern': common_substring
             })
 
-    # Write results to CSV
-    pattern_summary = os.path.join(intrim_dir, "pattern_summary.csv") # Use renamed variable
-    with open(pattern_summary, 'w', newline='') as f:
+    # Write results to CSV in the flanks output directory
+    pattern_summary_path = os.path.join(flanks_out_dir, "pattern_summary.csv") # Save to main/flanks/
+    with open(pattern_summary_path, 'w', newline='') as f:
         fieldnames = ['PatternName', 'TotalSeqIDs', 'PatternSize', 'Pattern']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -337,8 +341,10 @@ def process_flanking_regions(genome_file, locicons_file, intrim_dir, thread_coun
     logger.info(f"Total Conserved Patterns found: {total_patterns}")
     logger.info("=" * 50)
 
-    logger.info(f"Generated pattern summary at: {pattern_summary}")
-    return pattern_summary
+    logger.info(f"Generated pattern summary at: {pattern_summary_path}")
+    logger.info(f"Generated flanked data at: {flanked_tsv}") # Log flanked file path too
+    # Return both paths
+    return pattern_summary_path, flanked_tsv
 
 
 # --- Main pipeline ---
@@ -353,15 +359,15 @@ def main(args=None):
         parser = argparse.ArgumentParser(description="Generate mergedOut.tsv")
         parser.add_argument("--fasta", required=True, help="Path to all_genome.fa")
         parser.add_argument("--cat", required=True, help="Path to genome_categories.tsv")
-        parser.add_argument("--mono", type=int, default=12)
-        parser.add_argument("--di", type=int, default=4)
-        parser.add_argument("--tri", type=int, default=3)
+        parser.add_argument("--mono", type=int, default=10)
+        parser.add_argument("--di", type=int, default=6)
+        parser.add_argument("--tri", type=int, default=4)
         parser.add_argument("--tetra", type=int, default=3)
-        parser.add_argument("--penta", type=int, default=3)
+        parser.add_argument("--penta", type=int, default=2)
         parser.add_argument("--hexa", type=int, default=2)
-        parser.add_argument("--minLen", type=int, default=156000)
+        parser.add_argument("--minLen", type=int, default=1000)
         parser.add_argument("--maxLen", type=int, default=10000000)
-        parser.add_argument("--unfair", type=int, default=50)
+        parser.add_argument("--unfair", type=int, default=0)
         parser.add_argument("--thread", type=int, default=50)
         parser.add_argument("--out", default="output", help="Output directory")
         parser.add_argument("--tmp", default="intrim", help="Directory for intermediate files") # Keep arg name as tmp for compatibility, default to intrim
@@ -372,24 +378,29 @@ def main(args=None):
         logger = logging.getLogger(__name__)
 
     # Ensure all required attributes exist with defaults if not provided
-    if not hasattr(args, 'mono'): args.mono = 12
-    if not hasattr(args, 'di'): args.di = 4
-    if not hasattr(args, 'tri'): args.tri = 3
+    if not hasattr(args, 'mono'): args.mono = 10
+    if not hasattr(args, 'di'): args.di = 6
+    if not hasattr(args, 'tri'): args.tri = 4
     if not hasattr(args, 'tetra'): args.tetra = 3
-    if not hasattr(args, 'penta'): args.penta = 3
+    if not hasattr(args, 'penta'): args.penta = 2
     if not hasattr(args, 'hexa'): args.hexa = 2
-    if not hasattr(args, 'minLen'): args.minLen = 156000
+    if not hasattr(args, 'minLen'): args.minLen = 1000
     if not hasattr(args, 'maxLen'): args.maxLen = 10000000
-    if not hasattr(args, 'unfair'): args.unfair = 50
+    if not hasattr(args, 'unfair'): args.unfair = 0
     if not hasattr(args, 'thread'): args.thread = 50
 
     # Use the provided intermediate directory (passed as 'tmp' from CLI/API)
     intrim_dir = args.tmp # Assign the value from args.tmp to intrim_dir
-    
+    main_out_dir = args.out # Assign main output directory path
+
     # Final output will go directly to main output directory
-    merged_out_path = os.path.join(args.out, "mergedOut.tsv")
+    merged_out_path = os.path.join(main_out_dir, "mergedOut.tsv")
     reformatted_path = os.path.join(intrim_dir, "reformatted.tsv") # Define path for reformatted file
-    
+
+    # Ensure main output and intrim directories exist (API might create them, CLI needs this)
+    os.makedirs(main_out_dir, exist_ok=True)
+    os.makedirs(intrim_dir, exist_ok=True)
+
     # 1. Process and clean FASTA.
     cleanFasta = os.path.join(intrim_dir, "clean_genome.fa") # Use renamed variable
     logger.info("Cleaning FASTA...")
@@ -459,7 +470,8 @@ def main(args=None):
 
     # --- Conditional Steps based on Category File ---
     locicons_file = None
-    pattern_summary = None
+    pattern_summary_path = None # Initialize path variables
+    flanked_tsv_path = None
     final_output_file = reformatted_path # Default to reformatted if no categories
 
     if args.cat and os.path.exists(args.cat):
@@ -474,9 +486,11 @@ def main(args=None):
 
         # 9. Process flanking regions if requested (only if locicons were generated)
         if hasattr(args, 'flanks') and args.flanks and locicons_file:
-            pattern_summary = process_flanking_regions(
+            # Pass main_out_dir to the function now
+            pattern_summary_path, flanked_tsv_path = process_flanking_regions(
                 cleanFasta,  # Use the cleaned FASTA file
                 locicons_file,
+                main_out_dir, # Pass main output dir
                 intrim_dir,
                 args.thread,
                 logger
@@ -491,8 +505,9 @@ def main(args=None):
 
     # Return all relevant file paths
     # Return the path to the main output file (either merged or reformatted)
-    # and the paths to locicons/pattern summary if they were generated.
-    return final_output_file, locicons_file, pattern_summary
+    # and the paths to locicons and pattern summary if they were generated.
+    # Flanked TSV path is generated but not explicitly returned by main() currently.
+    return final_output_file, locicons_file, pattern_summary_path
 
 
 if __name__ == "__main__":

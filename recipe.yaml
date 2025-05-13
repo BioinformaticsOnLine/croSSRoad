@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.2.7
+  version: 0.3.3
   python_min: '3.9' # Updated Python requirement
 
 package:
@@ -30,7 +30,7 @@ requirements:
     - plotly
 
   run:
-    - python
+    - python {{ python_min }}.* # Pin Python version
     - numpy # Keep numpy here for runtime
     - fastapi
     - uvicorn
@@ -48,7 +48,7 @@ requirements:
     - rich # Added rich for TUI/logging
     - rich-argparse
     - typer        # Typer CLI framework (replaced typer[all] with plain typer)
-    - rich-click        # Rich-enhanced Click help
+    - rich-click >=1.7.0 # Rich-enhanced Click help (Updated version)
     - argcomplete       # Shell tab-completion
     - upsetplot # <-- Add upsetplot here
 
@@ -64,7 +64,7 @@ test:
   commands:
     - crossroad --help
   requires:
-    - python
+    - python {{ python_min }}.* # Pin Python version for tests
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
