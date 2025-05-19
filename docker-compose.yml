@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   crossroad:
     build:
@@ -11,9 +9,6 @@ services:
     volumes:
       # Mount the jobOut directory for persistent storage of job results
       - ./jobOut:/app/jobOut
-      # You might want to mount your source code for development if you're not rebuilding the image on every change
-      # For production, it's often better to rely on the code baked into the image.
-      # - ./:/app # Uncomment for local development if needed, but ensure it doesn't conflict with Dokploy's expectations
     ports:
       - "8000:8000" # Map port 8000 of the container to port 8000 on the host
     environment:
@@ -21,19 +16,3 @@ services:
       # Dokploy/Coolify might override or manage these through their UI
       - CROSSROAD_ROOT=/app
       - CORS_ALLOWED_ORIGINS=https://crossroad.bioinformaticsonline.com,https://cr.pranjal.work,https://cw.pranjal.work,http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173
-      # Add any other environment variables your application needs
-      # - ANOTHER_VARIABLE=another_value
-    # Traefik labels for Dokploy will typically be managed by Dokploy itself.
-    # If you need to set specific ones that Dokploy doesn't handle, you can add them here.
-    # However, for a standard Dokploy setup, you often don't need to specify Traefik labels here
-    # as Dokploy's UI or its own mechanisms will configure Traefik.
-    # Example (if Dokploy doesn't auto-configure everything):
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.crossroad-app.rule=Host(`your-domain.com`)"
-    #   - "traefik.http.routers.crossroad-app.entrypoints=websecure"
-    #   - "traefik.http.routers.crossroad-app.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.crossroad-app.loadbalancer.server.port=8000"
-
-# The top-level 'networks' definition is removed as per your gcal example.
-# Dokploy will handle network attachment if needed.

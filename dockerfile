@@ -1,5 +1,5 @@
 # Use an image with mamba/conda pre-installed
-FROM mambaforge/mambaforge:latest
+FROM condaforge/mambaforge:latest
 
 # Set working directory
 WORKDIR /app
