@@ -3,7 +3,7 @@ services:
     build:
       context: . # Use the Dockerfile in the current directory
       dockerfile: Dockerfile
-    container_name: crossroad
+    # container_name: crossroad # REMOVED to prevent Traefik default router/service conflicts
     restart: unless-stopped
     working_dir: /app # Should match WORKDIR in Dockerfile
     volumes:
@@ -19,5 +19,6 @@ services:
       # The existing middleware is redirect-to-https@file. We prepend ours.
       - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-web.middlewares=crossroad-bodylimit@docker,redirect-to-https@file"
 
-      # --- Attach the middleware to Dokploy's existing HTTPS router ---
+      # --- Attach the middleware AND set idleTimeout on Dokploy's existing HTTPS router ---
       - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-websecure.middlewares=crossroad-bodylimit@docker"
+      - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-websecure.idleTimeout=300s" # 5 minutes idle timeout
