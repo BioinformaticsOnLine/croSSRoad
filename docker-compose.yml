@@ -11,8 +11,3 @@ services:
       - ./jobOut:/app/jobOut
     ports:
       - "8000:8000" # Map port 8000 of the container to port 8000 on the host
-    environment:
-      # These environment variables will be passed to the container
-      # Dokploy/Coolify might override or manage these through their UI
-      - CROSSROAD_ROOT=/app
-      - CORS_ALLOWED_ORIGINS=https://crossroad.bioinformaticsonline.com,https://cr.pranjal.work,https://cw.pranjal.work,http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173
