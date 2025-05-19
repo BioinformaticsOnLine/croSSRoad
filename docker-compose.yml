@@ -12,15 +12,12 @@ services:
     ports:
       - "8000:8000" # Map port 8000 of the container to port 8000 on the host
     labels:
-      # --- Middleware for Request Body Limit ---
-      # Define the middleware
-      - "traefik.http.middlewares.crossroad-bodylimit.buffering.maxRequestBodyBytes=209715200" # 200MB, adjust as needed
+      # --- Define the middleware for request body limit ---
+      - "traefik.http.middlewares.crossroad-bodylimit.buffering.maxRequestBodyBytes=209715200" # 200MB
 
-      # --- Apply Middleware to Routers ---
-      # Apply to the HTTP router (if you want to allow large uploads over HTTP before redirect)
-      # Dokploy's generated router name for HTTP is: pranjalwork-crossroad-backend-kysfxf-28-web
+      # --- Attach the middleware to Dokploy's existing HTTP router ---
+      # The existing middleware is redirect-to-https@file. We prepend ours.
       - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-web.middlewares=crossroad-bodylimit@docker,redirect-to-https@file"
 
-      # Apply to the HTTPS router
-      # Dokploy's generated router name for HTTPS is: pranjalwork-crossroad-backend-kysfxf-28-websecure
+      # --- Attach the middleware to Dokploy's existing HTTPS router ---
       - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-websecure.middlewares=crossroad-bodylimit@docker"
