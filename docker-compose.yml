@@ -21,3 +21,15 @@ services:
 
       # --- Attach the middleware to Dokploy's existing HTTPS router ---
       - "traefik.http.routers.pranjalwork-crossroad-backend-kysfxf-28-websecure.middlewares=crossroad-bodylimit@docker"
+
+      # --- Add Timeouts to the HTTPS Service ---
+      # Service name used by Dokploy for the HTTPS router: pranjalwork-crossroad-backend-kysfxf-28-websecure
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-websecure.loadbalancer.server.forwardingTimeouts.dialTimeout=30s"
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-websecure.loadbalancer.server.forwardingTimeouts.responseHeaderTimeout=300s" # Increased for potentially long processing
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-websecure.loadbalancer.server.forwardingTimeouts.idleConnTimeout=300s"     # Increased
+
+      # --- Add Timeouts to the HTTP Service (for completeness, though requests should redirect) ---
+      # Service name used by Dokploy for the HTTP router: pranjalwork-crossroad-backend-kysfxf-28-web
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-web.loadbalancer.server.forwardingTimeouts.dialTimeout=30s"
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-web.loadbalancer.server.forwardingTimeouts.responseHeaderTimeout=300s"
+      - "traefik.http.services.pranjalwork-crossroad-backend-kysfxf-28-web.loadbalancer.server.forwardingTimeouts.idleConnTimeout=300s"
