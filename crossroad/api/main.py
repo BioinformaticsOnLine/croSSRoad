@@ -3,7 +3,6 @@ from fastapi import (
     Depends # Added for dependency injection if needed later
 )
 from fastapi.responses import FileResponse, JSONResponse, Response # Added Response
-from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 import time
@@ -72,31 +71,6 @@ app = FastAPI(
     description="API for analyzing SSRs in genomic data with job queuing",
     version="0.3.3", # Version bump
     lifespan=lifespan # Add lifespan manager
-)
-
-# --- CORS Configuration ---
-# Read allowed origins from environment variable, default to common local dev ports
-# Set CORS_ALLOWED_ORIGINS as a comma-separated string, e.g., "https://frontend.com,http://localhost:3000"
-allowed_origins_str = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://localhost:5173")
-origins = [origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()]
-
-# Add "*" if you need broad access during debugging, but be cautious in production, especially with credentials.
-# origins.append("*")
-# Example: Add specific production/staging domains
-# origins.extend([
-#     "https://cw.pranjal.work",
-#     "https://cwb.pranjal.work",
-#     "https://crossroad.bioinformaticsonline.com"
-# ])
-
-print(f"Configuring CORS for origins: {origins}") # Log the origins being used
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins, # Use the dynamically configured list
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 # On startup, load persisted job statuses from disk
