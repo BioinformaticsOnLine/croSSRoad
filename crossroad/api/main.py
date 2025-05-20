@@ -2,6 +2,7 @@ from fastapi import (
     FastAPI, UploadFile, File, Form, HTTPException, Request, BackgroundTasks,
     Depends # Added for dependency injection if needed later
 )
+from fastapi.middleware.cors import CORSMiddleware # Import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response # Added Response
 import shutil
 import os
@@ -71,6 +72,17 @@ app = FastAPI(
     description="API for analyzing SSRs in genomic data with job queuing",
     version="0.3.3", # Version bump
     lifespan=lifespan # Add lifespan manager
+)
+
+# --- Add CORS Middleware ---
+origins = ["*"] # Allow all origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all methods
+    allow_headers=["*"], # Allows all headers
 )
 
 # On startup, load persisted job statuses from disk
