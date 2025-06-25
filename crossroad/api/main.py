@@ -8,6 +8,8 @@ import shutil
 import os
 import time
 import json
+import subprocess # Added for Slurm
+import shlex # Added for Slurm
 from typing import Optional, Dict, Any, Tuple, List # Added List, Tuple
 import uvicorn
 from pydantic import BaseModel
@@ -33,6 +35,16 @@ from crossroad.core import process_ssr_results
 # --- Configuration ---
 MAX_CONCURRENT_JOBS = 2 # Example limit - Make this configurable later if needed
 ROOT_DIR = Path(os.getenv("CROSSROAD_ROOT", Path(__file__).resolve().parents[2]))
+
+# Slurm Configuration
+# Initialize SLURM_MODE based on environment variable first.
+# This will be used when Uvicorn imports the module.
+SLURM_MODE = os.getenv("CROSSROAD_SLURM_ENABLED", "false").lower() == "true"
+SLURM_PARTITION = os.getenv("CROSSROAD_SLURM_PARTITION", "compute")
+SLURM_CONDA_ENV = os.getenv("CROSSROAD_SLURM_CONDA_ENV", "crossroad")
+SLURM_DEFAULT_SBATCH_ARGS = os.getenv("CROSSROAD_SLURM_SBATCH_ARGS", "--nodes=1 --ntasks-per-node=40 --mem=120G")
+# These can be further configured via environment variables or CLI args later.
+
 # --- Job Status Enum ---
 class JobStatus(str, Enum):
     QUEUED = "queued"
@@ -47,16 +59,33 @@ job_statuses: Dict[str, Dict[str, Any]] = {} # {job_id: {"status": JobStatus, "m
 job_queue: asyncio.Queue[Tuple[str, Dict[str, Any]]] = asyncio.Queue() # Stores (job_id, task_params)
 active_job_count = 0
 queue_lock = asyncio.Lock() # To protect access to active_job_count and job_statuses
+slurm_monitor_task = None # For the Slurm monitor task
 
 # --- Lifespan Management (for starting queue consumer) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global slurm_monitor_task
     # Startup: Start the queue consumer task
-    print("Starting queue consumer...")
     # Ensure root logger is configured before starting consumer
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s [%(name)s:%(lineno)d] - %(message)s')
+    
+    logger = logging.getLogger("lifespan_startup")
+    logger.info(f"Executing script: {__file__}")
+    logger.info(f"Calculated ROOT_DIR: {ROOT_DIR}")
+    crossroad_slurm_env_var = os.getenv("CROSSROAD_SLURM_ENABLED")
+    logger.info(f"Environment CROSSROAD_SLURM_ENABLED: {crossroad_slurm_env_var}")
+    logger.info(f"Resulting SLURM_MODE: {SLURM_MODE}")
+
+    print("Starting queue consumer...")
     await load_persistent_statuses()
     consumer_task = asyncio.create_task(queue_consumer())
+    
+    if SLURM_MODE:
+        logger.info("Slurm mode is ON. Starting Slurm job monitor...")
+        slurm_monitor_task = asyncio.create_task(monitor_slurm_jobs())
+    else:
+        logger.info("Slurm mode is OFF. Slurm job monitor will not be started.")
+
     yield
     # Shutdown: Cancel the consumer task gracefully
     print("Shutting down queue consumer...")
@@ -65,6 +94,14 @@ async def lifespan(app: FastAPI):
         await consumer_task
     except asyncio.CancelledError:
         print("Queue consumer task cancelled.")
+    
+    if slurm_monitor_task:
+        print("Shutting down Slurm job monitor...")
+        slurm_monitor_task.cancel()
+        try:
+            await slurm_monitor_task
+        except asyncio.CancelledError:
+            print("Slurm job monitor task cancelled.")
 
 # Create app instance with lifespan manager
 app = FastAPI(
@@ -101,14 +138,18 @@ async def load_persistent_statuses():
             try:
                 with open(status_file) as f:
                     data = json.load(f)
-                job_statuses[job_dir.name] = {
+                job_data = {
                     "status": JobStatus(data["status"]),
                     "message": data.get("message", ""),
                     "progress": data.get("progress", 0.0),
                     "error_details": data.get("error_details", None),
-                    "reference_id": data.get("reference_id")
+                    "reference_id": data.get("reference_id"),
+                    "slurm_job_id": data.get("slurm_job_id") # Load Slurm job ID if present
                 }
-                logger.info(f"Loaded status for job {job_dir.name}: {data['status']}")
+                job_statuses[job_dir.name] = job_data
+                slurm_id_val = job_data.get("slurm_job_id") # Use .get for safety against KeyError
+                slurm_info_str = f" (Slurm ID: {slurm_id_val})" if slurm_id_val else ""
+                logger.info(f"Loaded status for job {job_dir.name}: {job_data['status']}{slurm_info_str}")
             except Exception as e:
                 logger.warning(f"Failed to load status.json for {job_dir.name}: {e}")
         else:
@@ -126,11 +167,12 @@ async def load_persistent_statuses():
                 try:
                     with open(status_file, "w") as sf:
                         json.dump({
-                            "status": job_statuses[job_id]["status"].value,
-                            "message": job_statuses[job_id]["message"],
-                            "progress": job_statuses[job_id]["progress"],
+                            "status": job_statuses[job_dir.name]["status"].value, # Use job_dir.name here
+                            "message": job_statuses[job_dir.name]["message"],
+                            "progress": job_statuses[job_dir.name]["progress"],
                             "error_details": None,
-                            "reference_id": None
+                            "reference_id": None,
+                            # "slurm_job_id": None # Not a Slurm job if inferred this way
                         }, sf)
                 except Exception as persist_err:
                     logger.warning(f"Could not write status.json for {job_dir.name}: {persist_err}")
@@ -176,12 +218,18 @@ async def queue_consumer():
                 async with queue_lock:
                     # Double-check concurrency limit just before starting
                     if active_job_count < MAX_CONCURRENT_JOBS:
-                        active_job_count += 1
-                        job_statuses[job_id]["status"] = JobStatus.RUNNING
-                        job_statuses[job_id]["message"] = "Starting analysis..."
-                        logger.info(f"Starting job {job_id}. Active jobs now: {active_job_count}")
-                        # Use asyncio.create_task for better control than BackgroundTasks here
-                        asyncio.create_task(run_analysis_pipeline_wrapper(job_id, task_params))
+                        active_job_count += 1 # This still represents jobs "handled" by the API
+                        job_statuses[job_id]["status"] = JobStatus.RUNNING # Initial status
+                        # The message will be updated by the specific task runner (local or Slurm submitter)
+
+                        if SLURM_MODE:
+                            job_statuses[job_id]["message"] = "Submitting to Slurm..."
+                            logger.info(f"Submitting job {job_id} to Slurm. Active API-handled jobs: {active_job_count}")
+                            asyncio.create_task(submit_slurm_job(job_id, task_params))
+                        else:
+                            job_statuses[job_id]["message"] = "Starting analysis locally..."
+                            logger.info(f"Starting job {job_id} locally. Active API-handled jobs: {active_job_count}")
+                            asyncio.create_task(run_analysis_pipeline_wrapper(job_id, task_params))
                     else:
                         logger.warning(f"Concurrency limit reached before starting {job_id}. Re-queuing.")
                         await job_queue.put((job_id, task_params)) # Put it back at the end
@@ -197,6 +245,253 @@ async def queue_consumer():
             logger.error(f"Error in queue consumer: {e}", exc_info=True)
             await asyncio.sleep(5) # Wait longer after an error
 
+
+# --- Slurm Job Submission ---
+async def submit_slurm_job(job_id: str, task_params: Dict[str, Any]):
+    """Prepares and submits a job to Slurm."""
+    global active_job_count # Ensure this is declared if it's modified
+    logger = task_params.get('logger')
+    if not logger: # Fallback logger
+        logger = logging.getLogger(f"SlurmSubmitter.{job_id}")
+        # BasicConfig should have already been called, but ensure level if new logger
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s [%(name)s:%(lineno)d] - %(message)s')
+        logger.info(f"Fallback logger initialized for SlurmSubmitter.{job_id}")
+
+
+    job_dir_path = Path(task_params['job_dir'])
+    slurm_meta_dir = job_dir_path / "slurm_meta"
+    os.makedirs(slurm_meta_dir, exist_ok=True)
+
+    slurm_params_path = slurm_meta_dir / "slurm_params.json"
+    sbatch_script_path = slurm_meta_dir / f"submit_{job_id}.sbatch"
+    # Slurm .out/.err files will go into job_dir/logs, distinct from job-specific log
+    slurm_log_output_dir = job_dir_path / "logs"
+    os.makedirs(slurm_log_output_dir, exist_ok=True)
+
+
+    # Prepare Slurm-safe parameters
+    slurm_safe_params = {}
+    for key, value in task_params.items():
+        if key in ["logger", "loop"]: # Cannot be serialized
+            continue
+        if isinstance(value, PerfParams):
+            slurm_safe_params[key] = value.model_dump() # Use model_dump for Pydantic
+        elif isinstance(value, Path):
+            slurm_safe_params[key] = str(value) # Convert Path objects to strings
+        else:
+            slurm_safe_params[key] = value
+
+    try:
+        with open(slurm_params_path, 'w') as f:
+            json.dump(slurm_safe_params, f, indent=4)
+        logger.info(f"Slurm parameters saved to {slurm_params_path}")
+
+        slurm_runner_script_path = ROOT_DIR / "crossroad" / "core" / "slurm_runner.py"
+        if not slurm_runner_script_path.exists():
+            logger.error(f"Slurm runner script not found at {slurm_runner_script_path}! Cannot submit job.")
+            # Update job status to FAILED if script is missing
+            async with queue_lock:
+                job_statuses[job_id]["status"] = JobStatus.FAILED
+                job_statuses[job_id]["message"] = "Slurm runner script missing, submission aborted."
+                job_statuses[job_id]["error_details"] = f"File not found: {slurm_runner_script_path}"
+            # Persist this failure status
+            status_path = job_dir_path / "status.json"
+            with open(status_path, "w") as sf:
+                json.dump(job_statuses[job_id], sf, default=lambda o: o.value if isinstance(o, Enum) else o)
+            return # Exit the submission process
+
+        python_executable = "python" # Assumes conda env activation handles this.
+
+        # Process SLURM_DEFAULT_SBATCH_ARGS to be correctly formatted
+        additional_sbatch_directives = ""
+        if SLURM_DEFAULT_SBATCH_ARGS:
+            args_list = shlex.split(SLURM_DEFAULT_SBATCH_ARGS)
+            for arg in args_list:
+                if arg.startswith("--"): # Basic check for an sbatch option
+                    additional_sbatch_directives += f"#SBATCH {arg}\n"
+                else: # If it's like --option=value, it might be split if not quoted well in env var
+                      # This simple split might need refinement for complex sbatch args from env var
+                      # For now, assumes well-formed pairs or single options
+                    additional_sbatch_directives += f"#SBATCH {arg}\n" # Fallback, might need #SBATCH --option=value
+
+        sbatch_content = f"""#!/bin/bash
+#SBATCH --job-name=cr_{job_id}
+#SBATCH --output={slurm_log_output_dir}/slurm_%j.out
+#SBATCH --error={slurm_log_output_dir}/slurm_%j.err
+#SBATCH --partition={SLURM_PARTITION}
+{additional_sbatch_directives.strip()}
+
+echo "SLURM_JOBID="$SLURM_JOBID
+echo "SLURM_JOB_NODELIST="$SLURM_JOB_NODELIST
+echo "SLURM_NNODES="$SLURM_NNODES
+echo "Date = $(date)"
+echo "Hostname = $(hostname -s)"
+echo "Working directory = $(pwd)"
+echo "Python executable: $(which {python_executable} || echo 'python not in PATH')"
+echo "Conda env: {SLURM_CONDA_ENV}"
+echo "ROOT_DIR for runner: {str(ROOT_DIR)}"
+echo "Params file for runner: {str(slurm_params_path)}"
+
+
+# Initialize Conda
+CONDA_BASE=$(conda info --base)
+source $CONDA_BASE/etc/profile.d/conda.sh
+conda activate {SLURM_CONDA_ENV}
+if [ $? -ne 0 ]; then
+    echo "Failed to activate conda environment: {SLURM_CONDA_ENV}"
+    exit 1
+fi
+echo "Conda environment activated."
+echo "Python path after activation: $(which python)"
+echo "PYTHONPATH: $PYTHONPATH"
+
+# Ensure the project directory is in PYTHONPATH if slurm_runner needs local imports
+# This assumes the script is run from a directory where 'crossroad' is a subdir or ROOT_DIR is the project root
+export PYTHONPATH={str(ROOT_DIR)}:$PYTHONPATH
+
+echo "Running CrossRoad Slurm task..."
+{python_executable} {str(slurm_runner_script_path)} --job-id "{job_id}" --params-file "{str(slurm_params_path)}" --root-dir "{str(ROOT_DIR)}"
+
+JOB_EXIT_CODE=$?
+echo "Slurm task finished with exit code $JOB_EXIT_CODE."
+exit $JOB_EXIT_CODE
+"""
+        with open(sbatch_script_path, 'w') as f:
+            f.write(sbatch_content)
+        logger.info(f"SBATCH script generated at {sbatch_script_path}")
+
+        submit_command = f"sbatch {str(sbatch_script_path)}"
+        logger.info(f"Submitting Slurm job with command: {submit_command}")
+        
+        process = await asyncio.to_thread(
+            subprocess.run, shlex.split(submit_command), capture_output=True, text=True, check=False
+        )
+
+        if process.returncode == 0 and "Submitted batch job" in process.stdout:
+            slurm_job_id_reported = process.stdout.strip().split()[-1]
+            logger.info(f"Job {job_id} submitted to Slurm. Slurm Job ID: {slurm_job_id_reported}. Output: {process.stdout.strip()}")
+            async with queue_lock:
+                job_statuses[job_id]["status"] = JobStatus.RUNNING # Or a new "SUBMITTED_SLURM"
+                job_statuses[job_id]["message"] = f"Submitted to Slurm (Slurm ID: {slurm_job_id_reported}). Waiting for execution."
+                job_statuses[job_id]["slurm_job_id"] = slurm_job_id_reported
+                status_to_persist = {
+                    "status": job_statuses[job_id]["status"].value,
+                    "message": job_statuses[job_id]["message"],
+                    "progress": job_statuses[job_id].get("progress", 0.0),
+                    "error_details": job_statuses[job_id].get("error_details"),
+                    "reference_id": job_statuses[job_id].get("reference_id"),
+                    "slurm_job_id": slurm_job_id_reported
+                }
+        else:
+            error_msg = f"Slurm submission failed for job {job_id}. RC: {process.returncode}. STDOUT: {process.stdout.strip()}. STDERR: {process.stderr.strip()}"
+            logger.error(error_msg)
+            async with queue_lock:
+                job_statuses[job_id]["status"] = JobStatus.FAILED
+                job_statuses[job_id]["message"] = "Slurm submission failed."
+                job_statuses[job_id]["error_details"] = f"sbatch error: {process.stderr.strip()} | stdout: {process.stdout.strip()}"
+                status_to_persist = {
+                    "status": job_statuses[job_id]["status"].value,
+                    "message": job_statuses[job_id]["message"],
+                    "progress": job_statuses[job_id].get("progress", 0.0),
+                    "error_details": job_statuses[job_id].get("error_details"),
+                    "reference_id": job_statuses[job_id].get("reference_id")
+                }
+        
+        # Persist status
+        status_path = job_dir_path / "status.json"
+        with open(status_path, "w") as sf:
+            json.dump(status_to_persist, sf)
+        logger.info(f"Job {job_id} status persisted to {status_path}")
+
+    except Exception as e:
+        error_msg = f"Error in submit_slurm_job for {job_id}: {e}"
+        logger.error(error_msg, exc_info=True)
+        async with queue_lock:
+            if job_id in job_statuses:
+                job_statuses[job_id]["status"] = JobStatus.FAILED
+                job_statuses[job_id]["message"] = "Failed during Slurm job preparation."
+                job_statuses[job_id]["error_details"] = traceback.format_exc()
+                status_to_persist = {
+                    "status": job_statuses[job_id]["status"].value,
+                    "message": job_statuses[job_id]["message"],
+                    "progress": job_statuses[job_id].get("progress", 0.0),
+                    "error_details": job_statuses[job_id].get("error_details"),
+                    "reference_id": job_statuses[job_id].get("reference_id")
+                }
+                status_path = job_dir_path / "status.json"
+                with open(status_path, "w") as sf:
+                    json.dump(status_to_persist, sf)
+                logger.info(f"Job {job_id} (failure) status persisted to {status_path}")
+    finally:
+        async with queue_lock:
+            # Decrement active_job_count as the API's direct handling (submission) is done.
+            # This assumes active_job_count was incremented before calling submit_slurm_job
+            if active_job_count > 0 : active_job_count -=1
+            logger.info(f"Slurm submission process for job {job_id} finished. Active API-handled jobs now: {active_job_count}")
+
+# --- Slurm Job Monitor ---
+async def monitor_slurm_jobs():
+    """Periodically checks status.json for Slurm-submitted jobs and updates API state."""
+    logger = logging.getLogger("SlurmMonitor")
+    logger.info("Slurm job monitor started.")
+    while True:
+        try:
+            await asyncio.sleep(30) # Check every 30 seconds (configurable)
+            
+            jobs_to_check = []
+            async with queue_lock: # Access job_statuses safely
+                for job_id, data in job_statuses.items():
+                    # Check jobs that were submitted to Slurm and are still marked as RUNNING by the API
+                    if data.get("slurm_job_id") and data["status"] == JobStatus.RUNNING:
+                        jobs_to_check.append(job_id)
+            
+            if not jobs_to_check:
+                # logger.debug("No active Slurm jobs to monitor currently.")
+                continue
+
+            logger.info(f"Checking status for Slurm jobs: {jobs_to_check}")
+
+            for job_id in jobs_to_check:
+                job_dir_path = ROOT_DIR / "jobOut" / job_id
+                status_file_path = job_dir_path / "status.json"
+
+                if status_file_path.exists():
+                    try:
+                        with open(status_file_path, 'r') as f:
+                            disk_status_data = json.load(f)
+                        
+                        disk_status = JobStatus(disk_status_data.get("status", JobStatus.FAILED.value)) # Default to FAILED if status key missing
+                        
+                        # If job on disk is COMPLETED or FAILED, update API's in-memory status
+                        if disk_status == JobStatus.COMPLETED or disk_status == JobStatus.FAILED:
+                            async with queue_lock:
+                                if job_id in job_statuses and job_statuses[job_id]["status"] == JobStatus.RUNNING: # Ensure it's still considered running by API
+                                    logger.info(f"Updating job {job_id} from Slurm status file. New status: {disk_status.value}. Message: {disk_status_data.get('message')}")
+                                    job_statuses[job_id]["status"] = disk_status
+                                    job_statuses[job_id]["message"] = disk_status_data.get("message", job_statuses[job_id]["message"])
+                                    job_statuses[job_id]["progress"] = disk_status_data.get("progress", job_statuses[job_id]["progress"])
+                                    job_statuses[job_id]["error_details"] = disk_status_data.get("error_details", job_statuses[job_id]["error_details"])
+                                    # Potentially update other fields like 'completed_at' if present
+                                else:
+                                    logger.info(f"Job {job_id} status on disk is {disk_status.value}, but API status is {job_statuses.get(job_id,{}).get('status')}. No update needed or already updated.")
+                        # else:
+                            # logger.debug(f"Job {job_id} on disk is still {disk_status.value}. No API update.")
+
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to decode status.json for job {job_id}. File might be corrupt or being written.")
+                    except FileNotFoundError:
+                        logger.warning(f"status.json for job {job_id} disappeared during check.") # Should not happen if it existed initially
+                    except Exception as e:
+                        logger.error(f"Error processing status for job {job_id} from disk: {e}", exc_info=True)
+                # else:
+                    # logger.warning(f"status.json not found for supposedly active Slurm job {job_id} at {status_file_path}. This might be an issue.")
+
+        except asyncio.CancelledError:
+            logger.info("Slurm job monitor cancelling...")
+            break
+        except Exception as e:
+            logger.error(f"Error in Slurm job monitor loop: {e}", exc_info=True)
+            await asyncio.sleep(60) # Wait longer after an error
 
 # --- Wrapper for Background Task to handle completion/failure ---
 async def run_analysis_pipeline_wrapper(job_id: str, task_params: Dict[str, Any]):
@@ -272,20 +567,28 @@ def run_analysis_pipeline(
 
     # --- Update Status Helper ---
     def update_status_sync(message: str, progress: float):
-        async def _update():
-             async with queue_lock:
-                 if job_id in job_statuses and job_statuses[job_id]["status"] == JobStatus.RUNNING:
-                     job_statuses[job_id]["message"] = message
-                     job_statuses[job_id]["progress"] = progress
-                 else:
-                      logger.warning(f"Skipping status update for job {job_id} as its status is no longer RUNNING.")
-        future = asyncio.run_coroutine_threadsafe(_update(), loop)
-        try:
-            future.result(timeout=5)
-        except TimeoutError:
-             logger.warning(f"Status update for job {job_id} timed out.")
-        except Exception as e:
-             logger.error(f"Error submitting status update for job {job_id}: {e}")
+        # The 'loop' variable is passed into run_analysis_pipeline
+        # It might not be present or running if this function is called
+        # directly by a script not managed by the API's asyncio loop (e.g. slurm_runner.py)
+        if 'loop' in locals() and loop and loop.is_running():
+            async def _update():
+                async with queue_lock:
+                    if job_id in job_statuses and job_statuses[job_id]["status"] == JobStatus.RUNNING:
+                        job_statuses[job_id]["message"] = message
+                        job_statuses[job_id]["progress"] = progress
+                    # else: # Avoid too verbose logging if status changed rapidly
+                        # logger.warning(f"Skipping status update for job {job_id} (status: {job_statuses.get(job_id, {}).get('status')}) as it's not RUNNING or not found.")
+            future = asyncio.run_coroutine_threadsafe(_update(), loop)
+            try:
+                future.result(timeout=2) # Shorter timeout for status updates
+            except TimeoutError:
+                logger.warning(f"Status update for job {job_id} timed out via run_coroutine_threadsafe.")
+            except Exception as e:
+                logger.error(f"Error submitting status update for job {job_id} via run_coroutine_threadsafe: {e}", exc_info=False) # Keep log cleaner
+        else:
+            # If no loop or loop not running (e.g., called from Slurm runner), log locally.
+            # The Slurm runner will handle overall status.json updates based on pipeline completion.
+            logger.info(f"Status update (local log for job {job_id}, no API state update): {message} - Progress: {progress*100:.0f}%")
 
     try:
         update_status_sync("Running M2 pipeline...", 0.1)
@@ -517,8 +820,9 @@ async def get_job_status(job_id: str):
         "status": status_info["status"].value,
         "message": status_info["message"],
         "progress": status_info.get("progress", 0.0),
-        "error_details": "An error occurred during processing." if status_info["status"] == JobStatus.FAILED else None,
-        "reference_id": status_info.get("reference_id")
+        "error_details": status_info.get("error_details") if status_info["status"] == JobStatus.FAILED else None,
+        "reference_id": status_info.get("reference_id"),
+        "slurm_job_id": status_info.get("slurm_job_id") # Add Slurm job ID to status response
     })
 
 
@@ -684,4 +988,36 @@ async def get_job_logs(job_id: str):
 if __name__ == "__main__":
     # Basic logging setup for running directly (before lifespan manager takes over)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s [%(name)s:%(lineno)d] - %(message)s')
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False) # Reference app by string, disable reload for stability
+
+    parser = argparse.ArgumentParser(description="CrossRoad API Server")
+    parser.add_argument(
+        "-s", "--slurm",
+        action="store_true",
+        help="Enable Slurm mode for job submission."
+    )
+    parser.add_argument(
+        "--host", type=str, default=os.getenv("CROSSROAD_HOST", "0.0.0.0"), help="Host to bind the server to."
+    )
+    parser.add_argument(
+        "--port", type=int, default=int(os.getenv("CROSSROAD_PORT", "8000")), help="Port to bind the server to."
+    )
+    # Future: Add CLI args for SLURM_PARTITION, SLURM_CONDA_ENV, SLURM_DEFAULT_SBATCH_ARGS
+    # For now, they primarily use global constants / environment variables.
+
+    cli_args = parser.parse_args()
+
+    # When running script directly, --slurm flag can override the environment variable.
+    if cli_args.slurm:
+        if not SLURM_MODE: # It was false, but flag is set
+            logging.info(f"Slurm mode OVERRIDDEN to ENABLED by --slurm flag.")
+        SLURM_MODE = True
+        logging.info(f"Slurm mode ENABLED (via --slurm flag). Partition: '{SLURM_PARTITION}', Conda Env: '{SLURM_CONDA_ENV}'.")
+        logging.info(f"Default sbatch args: '{SLURM_DEFAULT_SBATCH_ARGS}'")
+    elif SLURM_MODE: # True from environment variable, and --slurm flag not used to change it
+        logging.info(f"Slurm mode ENABLED (via CROSSROAD_SLURM_ENABLED environment variable). Partition: '{SLURM_PARTITION}', Conda Env: '{SLURM_CONDA_ENV}'.")
+        logging.info(f"Default sbatch args: '{SLURM_DEFAULT_SBATCH_ARGS}'")
+    else: # SLURM_MODE is False (either by default, env var, or not overridden by flag)
+        logging.info("Slurm mode DISABLED. Jobs will be run locally by the API.")
+
+    # The  global variable is now set correctly for the lifespan manager.
+    uvicorn.run("main:app", host=cli_args.host, port=cli_args.port, reload=False)
