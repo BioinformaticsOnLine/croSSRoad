@@ -6,27 +6,22 @@ from rich.logging import RichHandler # Use RichHandler instead of colorlog
 
 # (Removed LockingStreamHandler as spinner is on stderr and logs go to stdout)
 
-def setup_logging(job_id, job_dir, args_namespace=None, console=None): # Accept parsed args
+def setup_logging(job_id, job_dir, args_namespace=None, console=None):
     """Standardized logging setup for both CLI and API, optionally using a Rich Console."""
-    # Create log file path
     log_file = os.path.join(job_dir, f"{job_id}.log")
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
 
-    # --- Handler Management --- 
-    # Remove existing File and Console Handlers to avoid duplication/conflicts
-    for handler in root_logger.handlers[:]:
-        if isinstance(handler, (logging.FileHandler, RichHandler, logging.StreamHandler)):
-            # Keep handlers not belonging to these types (e.g., from other libs)
+    # --- Handler Management ---
+    # Clear all existing handlers from the root logger to prevent duplication
+    if root_logger.hasHandlers():
+        for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
-            try:
-                 handler.close()
-            except Exception:
-                 pass # Ignore errors on close, e.g., if already closed
+            handler.close()
 
-    # --- File Handler --- 
+    # --- File Handler ---
     log_format = '%(asctime)s - %(levelname)s [%(name)s:%(lineno)d] - %(message)s'
     file_formatter = logging.Formatter(log_format, datefmt='%Y-%m-%d %H:%M:%S')
     file_handler = logging.FileHandler(log_file)

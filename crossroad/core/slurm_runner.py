@@ -28,6 +28,37 @@ def setup_slurm_job_logging(job_id: str, job_dir: Path):
     )
     return logging.getLogger(f"SlurmRunner.{job_id}")
 
+def update_status_on_disk(job_dir: Path, job_id: str, message: str, progress: float, status: str = "running", error_details: str = None):
+    """
+    Reads, updates, and writes the status.json file for a job.
+    This provides a thread-safe way for a Slurm job to report progress.
+    """
+    status_file_path = job_dir / "status.json"
+    payload = {}
+    try:
+        # Read existing data if file exists
+        if status_file_path.exists():
+            with open(status_file_path, 'r') as f:
+                payload = json.load(f)
+
+        # Update fields
+        payload['status'] = status
+        payload['message'] = message
+        payload['progress'] = progress
+        if error_details:
+            payload['error_details'] = error_details
+        
+        payload['updated_at'] = datetime.now(timezone.utc).isoformat()
+
+        # Write back to file
+        with open(status_file_path, 'w') as f:
+            json.dump(payload, f, indent=4)
+
+    except (IOError, json.JSONDecodeError) as e:
+        # If status update fails, log it. The job will continue.
+        logging.getLogger(f"SlurmRunner.{job_id}").error(f"Failed to update status file {status_file_path}: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="CrossRoad Slurm Job Runner")
     parser.add_argument("--job-id", required=True, help="The unique ID for this job.")
@@ -36,91 +67,69 @@ def main():
     
     args = parser.parse_args()
 
-    # Add root_dir to sys.path to allow for correct imports
+    # --- Path and Module Setup ---
     if str(args.root_dir) not in sys.path:
         sys.path.insert(0, str(args.root_dir))
 
-    # Now that sys.path is configured, we can import from the project
     try:
-        from crossroad.api.main import run_analysis_pipeline, PerfParams, JobStatus # Assuming enums/models are accessible
-        from crossroad.core.logger import setup_logging as setup_pipeline_logging # For the pipeline's own logger
+        from crossroad.api.main import run_analysis_pipeline, PerfParams, JobStatus
+        from crossroad.core.logger import setup_logging as setup_pipeline_logging
     except ImportError as e:
-        # Fallback basic logging if main logger setup fails before imports
+        # This is a critical failure. Log and attempt to write a failure status.
         logging.basicConfig(level=logging.ERROR)
-        logging.error(f"Failed to import necessary modules. Ensure --root-dir is correct and PYTHONPATH is set. Error: {e}", exc_info=True)
-        # Try to write a status file indicating this critical failure
+        logging.error(f"Failed to import modules: {e}", exc_info=True)
         job_dir_for_status = args.root_dir / "jobOut" / args.job_id
-        status_file_path = job_dir_for_status / "status.json"
-        try:
-            os.makedirs(job_dir_for_status, exist_ok=True)
-            with open(status_file_path, 'w') as sf:
-                json.dump({
-                    "status": "failed", # Using string directly as JobStatus enum might not be imported
-                    "message": "Slurm runner failed: Critical import error.",
-                    "error_details": f"ImportError: {e}\nPYTHONPATH: {os.getenv('PYTHONPATH')}\nsys.path: {sys.path}",
-                    "progress": 0.0,
-                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
-                }, sf, indent=4)
-        except Exception as e_stat:
-            logging.error(f"Additionally failed to write critical failure status to {status_file_path}: {e_stat}")
+        job_dir_for_status.mkdir(exist_ok=True)
+        update_status_on_disk(
+            job_dir=job_dir_for_status, job_id=args.job_id,
+            status=JobStatus.FAILED.value,
+            message="Slurm runner failed: Critical import error.",
+            progress=0.0,
+            error_details=f"ImportError: {e}\nPYTHONPATH: {os.getenv('PYTHONPATH')}\nsys.path: {sys.path}"
+        )
         sys.exit(1)
 
-
-    # Load parameters
+    # --- Parameter and Logging Setup ---
     if not args.params_file.exists():
-        # This case should ideally be caught before sbatch submission, but good to check.
-        # Basic logging as full logger might not be set up.
         logging.basicConfig(level=logging.ERROR)
-        logging.error(f"Parameters file {args.params_file} not found for job {args.job_id}.")
-        sys.exit(1) # Exit, Slurm will mark job as failed.
+        logging.error(f"Parameters file {args.params_file} not found.")
+        sys.exit(1)
 
     with open(args.params_file, 'r') as f:
         task_params = json.load(f)
 
-    job_dir = Path(task_params['job_dir']) # This path is absolute, from the API's perspective
-    
-    # Setup logging for this runner script itself
+    job_dir = Path(task_params['job_dir'])
     logger = setup_slurm_job_logging(args.job_id, job_dir)
-    logger.info(f"Slurm runner started for job {args.job_id}.")
-    logger.info(f"PYTHONPATH: {os.getenv('PYTHONPATH')}")
-    logger.info(f"sys.path: {sys.path}")
-    logger.info(f"Loaded task parameters from {args.params_file}: {task_params}")
+    logger.info(f"Slurm runner started for job {args.job_id}. Slurm Job ID: {os.getenv('SLURM_JOB_ID')}")
+    logger.info(f"Loaded task parameters from {args.params_file}")
 
-
-    # Re-hydrate Pydantic models and other necessary objects
-    # The 'logger' in task_params was for the API side; pipeline needs its own.
-    # The 'loop' is not applicable here.
-    pipeline_logger = setup_pipeline_logging(args.job_id, job_dir) # Setup the job-specific logger for the pipeline
+    # --- Prepare Pipeline Arguments ---
+    pipeline_logger = setup_pipeline_logging(args.job_id, str(job_dir))
     task_params['logger'] = pipeline_logger
-    task_params['loop'] = None # Explicitly set to None, as there's no API event loop here
-
-    if 'perf_params' in task_params and isinstance(task_params['perf_params'], dict):
-        try:
-            task_params['perf_params'] = PerfParams(**task_params['perf_params'])
-        except Exception as e:
-            logger.error(f"Failed to re-instantiate PerfParams: {e}", exc_info=True)
-            # Update status.json to FAILED
-            status_file_path = job_dir / "status.json"
-            with open(status_file_path, 'w') as sf:
-                json.dump({
-                    "status": JobStatus.FAILED.value,
-                    "message": "Slurm runner failed: PerfParams instantiation error.",
-                    "error_details": traceback.format_exc(),
-                    "progress": 0.0,
-                    "reference_id": task_params.get("reference_id"),
-                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
-                }, sf, indent=4)
-            sys.exit(1)
     
+    # Re-hydrate Pydantic model
+    if 'perf_params' in task_params and isinstance(task_params['perf_params'], dict):
+        task_params['perf_params'] = PerfParams(**task_params['perf_params'])
+
+    # Create the status update callback
+    def status_callback(message: str, progress: float):
+        update_status_on_disk(job_dir, args.job_id, message, progress, status=JobStatus.RUNNING.value)
+
+    task_params['status_update_callback'] = status_callback
+
+    # --- Execute Pipeline ---
     final_status = JobStatus.COMPLETED
     error_details_str = None
     final_message = "Analysis completed successfully via Slurm."
+    final_progress = 0.0
 
     try:
         logger.info(f"Calling run_analysis_pipeline for job {args.job_id}...")
-        # Ensure all paths in task_params are absolute or resolvable from current context
-        # The paths should have been stored as absolute strings by the API.
+        # Update status to 'running' just before execution starts
+        update_status_on_disk(job_dir, args.job_id, "Starting analysis pipeline...", 0.0, status=JobStatus.RUNNING.value)
+        
         run_analysis_pipeline(**task_params)
+        
         logger.info(f"run_analysis_pipeline completed for job {args.job_id}.")
         final_progress = 1.0
 
@@ -129,29 +138,26 @@ def main():
         final_status = JobStatus.FAILED
         final_message = f"Analysis failed in Slurm: {str(e)}"
         error_details_str = traceback.format_exc()
-        final_progress = task_params.get("progress", 0.0) # Keep last known progress or 0
+        # Try to get the last known progress from the status file
+        try:
+            with open(job_dir / "status.json", 'r') as f:
+                final_progress = json.load(f).get('progress', 0.0)
+        except Exception:
+            final_progress = 0.0 # Default if reading fails
     finally:
         logger.info(f"Finalizing job {args.job_id}. Status: {final_status.value}")
-        status_payload = {
-            "status": final_status.value,
-            "message": final_message,
-            "progress": final_progress if final_status == JobStatus.COMPLETED else task_params.get("progress",0.0) , # task_params might not have progress if it failed early
-            "error_details": error_details_str,
-            "reference_id": task_params.get("reference_id"), # Get from original params
-            "slurm_job_id": os.getenv("SLURM_JOB_ID", "N/A"), # Add Slurm job ID from environment
-            "completed_at": datetime.now(timezone.utc).isoformat() + "Z"
-        }
-        status_file_path = job_dir / "status.json"
-        try:
-            with open(status_file_path, 'w') as sf:
-                json.dump(status_payload, sf, indent=4)
-            logger.info(f"Final status for job {args.job_id} written to {status_file_path}")
-        except Exception as e_stat:
-            logger.error(f"CRITICAL: Failed to write final status to {status_file_path} for job {args.job_id}: {e_stat}", exc_info=True)
+        update_status_on_disk(
+            job_dir=job_dir,
+            job_id=args.job_id,
+            status=final_status.value,
+            message=final_message,
+            progress=final_progress,
+            error_details=error_details_str
+        )
 
     logger.info(f"Slurm runner finished for job {args.job_id}.")
     if final_status == JobStatus.FAILED:
-        sys.exit(1) # Ensure Slurm marks the job as failed if the pipeline failed
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

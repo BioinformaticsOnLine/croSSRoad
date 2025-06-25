@@ -1,0 +1,17 @@
+module.exports = {
+  apps : [{
+    name   : "crossroad-api",
+    script : "python", // The script is the python interpreter itself
+    args   : "-m crossroad.cli.main --api", // Arguments passed to the interpreter
+    cwd    : "/home/preeti.a/crossroad/preeti/croSSRoad/", // The working directory
+    env_local: {
+      "CROSSROAD_EXECUTION_MODE": "local",
+      "CROSSROAD_JOB_DIR": "/home/preeti.a/crossroad/preeti/croSSRoad/jobOut"
+    },
+    env_slurm: {
+      "CROSSROAD_EXECUTION_MODE": "slurm",
+      "CROSSROAD_JOB_DIR": "/home/preeti.a/crossroad/preeti/croSSRoad/jobOut"
+    }
+  }]
+}
+

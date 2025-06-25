@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-# Remove argparse import, keep others
-# import argparse # Removed
 import logging
 import os
-import sys # Keep for sys.argv
+import sys
 import time
-import random # Re-added for quotes
+import random
+import json
+import subprocess
 from datetime import datetime
-from pathlib import Path # Added for Path objects
-from typing import Optional, Annotated # Added for type hinting
-# Ensure argparse.Namespace is available if core modules require it
+from pathlib import Path
+from typing import Optional, Annotated
 from argparse import Namespace
 
+# --- Centralized Config ---
+# This should be the first crossroad import to ensure config is loaded
+from crossroad import config
+# --- End Centralized Config ---
+
 # --- Version ---
-__version__ = "0.3.3" # Define the version here
+__version__ = "0.3.4" # Define the version here
 
 # Typer and Rich-related imports
 import typer
@@ -67,18 +71,20 @@ click.rich_click.OPTION_GROUPS = {
 # Existing Crossroad imports
 from crossroad.core import m2, gc2, process_ssr_results
 from crossroad.core.logger import setup_logging
+from crossroad.core.slurm_manager import SlurmManager
+from crossroad.api.main import JobStatus # Import for status checking
 # Defer importing plotting until needed
 # from crossroad.core.plotting import generate_all_plots
-# import textwrap # No longer needed for argparse formatting
 
 # Rich Logo & Welcome (Updated to include details within the logo)
 LOGO_TEXT = Text.assemble(
     ("    ┌─┐┬─┐┌─┐╔═╗╔═╗╦═╗┌─┐┌─┐┌┬┐\n", "bold cyan"),
     ("    │  ├┬┘│ │╚═╗╚═╗╠╦╝│ │├─┤ ││\n", "bold cyan"),
     ("    └─┘┴└─└─┘╚═╝╚═╝╩╚═└─┘┴ ┴─┴┘\n", "bold cyan"),
-    (f"    Version: {__version__}\n\n", "green"),  # Added version here
+    (f"    Version: {__version__}\n\n", "green"),
     # Citation and other details below the logo
-    ("    Citation - cro", "dim white"),
+    ("    A tool to cross-compare SSRs across genomes.\n", "dim white"),
+    ("    Citation: cro", "dim white"),
     ("SSR", "bold yellow"),
     ("oad: a tool to cross-compare SSRs across species and families\n", "dim white"),
     ("    License: Creative Commons License\n", "dim white"),
@@ -203,21 +209,20 @@ def version_callback(value: bool):
 
 # --- Typer Application Setup ---
 app = typer.Typer(
-    cls=click.RichGroup, # Use RichGroup provided by rich-click
+    cls=click.RichGroup,
     name="crossroad",
-    add_completion=True, # Corrected: Enable shell completion support
+    add_completion=True,
     help="""\
 [bold cyan]cro[/][bold yellow]SSR[/][bold cyan]oad[/]: A comprehensive tool for analyzing SSRs in genomic data.
 
-Use `crossroad --help` for detailed options.
+Supports direct analysis, Slurm job submission, and running as a web API.
 """,
     epilog="""\
 [bold green]Citation:[/] If you use croSSRoad in your research, please cite:
   cro[bold yellow]SSR[/]oad: a tool to cross-compare SSRs across species and families
 
 [bold blue]Documentation:[/] https://github.com/BioinformaticsOnLine/croSSRoad
-""",
-    # Removed version parameter due to TypeError in older Typer versions
+"""
 )
 
 # Symbols for Log Levels (Defined inside main)
@@ -244,18 +249,37 @@ def check_dir_exists(path: Optional[Path]) -> Optional[Path]:
 # --- Main Typer Command Function (Ensure short flags first) ---
 @app.command(
     context_settings={"help_option_names": ["-h", "--help"]},
-    help="Run the main croSSRoad analysis pipeline." # Short help for the command itself
+    help="Run the main croSSRoad analysis pipeline, or manage jobs."
 )
 def main(
+    # --- Mode Selection ---
+    api: Annotated[bool, typer.Option(
+        "-a", "--api",
+        help="Run the Crossroad web API server.",
+        rich_help_panel="Mode Selection",
+    )] = False,
+    slurm: Annotated[bool, typer.Option(
+        "-s", "--slurm",
+        help="Submit the analysis job to a Slurm cluster.",
+        rich_help_panel="Mode Selection",
+    )] = False,
+    job_status: Annotated[Optional[str], typer.Option(
+        "--job-status",
+        metavar="JOB_ID",
+        help="Query the status of a specific job ID.",
+        rich_help_panel="Mode Selection",
+        show_default=False,
+    )] = None,
+
     # --- Version Info Option ---
     version_info: Annotated[Optional[bool], typer.Option(
-        "-v", "--version", # Short and long flag
+        "-v", "--version",
         help="Show version, logo, citation, and links.",
-        callback=version_callback, # Call the custom function
-        is_flag=True, # This is a flag, no value needed
-        expose_value=False, # Don't pass the value to main()
-        is_eager=True, # Process this flag early
-    )] = None, # Default value is None, callback handles True
+        callback=version_callback,
+        is_flag=True,
+        expose_value=False,
+        is_eager=True,
+    )] = None,
 
     # --- Input Files Group ---
     input_dir: Annotated[Optional[Path], typer.Option(
@@ -294,15 +318,16 @@ def main(
         rich_help_panel="Analysis Parameters",
         show_default=False,
     )] = None,
-    output_dir: Annotated[Path, typer.Option(
-        "-o", "--output-dir", # Short flag first
-        help="Base output directory for the job.",
+    output_dir: Annotated[Optional[Path], typer.Option(
+        "-o", "--output-dir",
+        help="Base output directory for jobs. Overrides CROSSROAD_JOB_DIR env var.",
         rich_help_panel="Analysis Parameters",
         writable=True,
         file_okay=False,
         dir_okay=True,
         resolve_path=True,
-    )] = Path("jobOut"),
+        show_default=False,
+    )] = None,
     flanks: Annotated[bool, typer.Option(
         "-f", "--flanks", # Short flag first
         help="Process flanking regions.",
@@ -364,15 +389,30 @@ def main(
     Main entry point for the croSSRoad analysis pipeline.
 
     Processes genomic data to identify and compare Simple Sequence Repeats (SSRs).
-    Requires either a FASTA file (`--fasta`) or an input directory (`--input-dir`).
     """
-    # Restructuring logic to separate file selection from pipeline execution
-    console.print(LOGO_TEXT) # Print the logo using Rich
-    console.print(WELCOME_PANEL) # Print the welcome panel using Rich
+    # --- Centralized Config Override ---
+    # Allow CLI option to override the environment variable for output dir
+    if output_dir:
+        config.JOB_OUTPUT_DIR = output_dir
+    
+    # Initialize directories based on final config
+    config.initialize_directories()
 
-    # Display example commands when run with no arguments
-    if len(sys.argv) <= 1:
-        time.sleep(3) # <-- Add the 3-second delay here
+    # --- Mode Handling ---
+    if api:
+        run_api_mode()
+        return # Exit after handling the mode
+    if job_status:
+        run_job_status_mode(job_status)
+        return
+
+    # --- Default/Slurm Analysis Mode ---
+    console.print(LOGO_TEXT)
+    console.print(WELCOME_PANEL)
+
+    # Display examples if no analysis inputs are given
+    if len(sys.argv) <= 1 or all(arg in sys.argv for arg in ['-s', '--slurm']) and len(sys.argv) <= 2:
+        time.sleep(1)
         console.print(EXAMPLE_INTRO)
         console.print(EXAMPLE_BASIC)
         console.print(SCENARIO_FASTA_ONLY)
@@ -381,12 +421,9 @@ def main(
         console.print(EXAMPLE_REAL)
         return
 
-    # --- Input File Validation and Path Resolution ---
-    # Typer's `callback` handles basic existence checks.
-    # Now handle mutual exclusivity and logic based on input mode.
+    # --- Input Validation for Analysis ---
     if not input_dir and not fasta:
-        console.print("[bold red]Error:[/] Either `--input-dir` or `--fasta` must be provided.", markup=True)
-        console.print("Use `crossroad --help` for usage details.", markup=True)
+        console.print("[bold red]Error:[/] Either `--input-dir` or `--fasta` must be provided for analysis.", markup=True)
         raise typer.Exit(code=1)
     if input_dir and fasta:
         console.print("[bold red]Error:[/] Use either `--input-dir` or `--fasta`, not both.", markup=True)
@@ -543,27 +580,16 @@ def main(
     console.print("")
     console.print(Rule("[bold blue]Phase 3: Analysis Execution", style="blue"))
 
-    # Create job ID and setup directories using the specified output base directory
-    start_time = time.time() # Record start time
-    job_id = f"job_{int(time.time() * 1000)}"
-    # output_dir is already an absolute Path object from Typer
-    job_dir = output_dir / job_id # Use Path object directly
+    # Create job ID and setup directories
+    start_time = time.time()
+    job_id = f"job_{int(time.time() * 1000)}_{random.randint(100, 999)}"
+    job_dir = config.JOB_OUTPUT_DIR / job_id
 
-    # Setup logging - passing the Typer parameters
-    # Create a simple namespace or dict for logger compatibility if needed
-    log_args = {
-        'input_dir': input_dir, 'fasta': fasta, 'categories': categories,
-        'gene_bed': gene_bed, 'reference_id': reference_id, 'output_dir': output_dir,
-        'flanks': flanks, 'mono': mono, 'di': di, 'tri': tri, 'tetra': tetra,
-        'penta': penta, 'hexa': hexa, 'min_len': min_len, 'max_len': max_len,
-        'unfair': unfair, 'threads': threads, 'min_repeat_count': min_repeat_count,
-        'min_genome_count': min_genome_count, 'plots': plots, 'intrim_dir': intrim_dir_name
-    }
-    # The setup_logging function might need adjustment if it strictly requires an argparse.Namespace
-    # Let's assume it can handle a dict for now, or pass a Namespace if needed.
-    logger = setup_logging(job_id, str(job_dir), args_namespace=Namespace(**log_args), console=console)
+    # Setup logging
+    log_args = Namespace(**locals()) # Capture all local variables for logging
+    logger = setup_logging(job_id, str(job_dir), args_namespace=log_args, console=console)
 
-    # --- Display Parameters ---\n    param_display_lines = []
+    # --- Display Parameters ---
     # Iterate through Typer parameters (can use ctx.params if needed, but direct vars are fine)
     # Note: This is simpler than argparse introspection
     param_display_lines = []
@@ -575,7 +601,8 @@ def main(
     if gene_bed_path_resolved: param_display_lines.append(f"  [white]* gene_bed:[/]: {gene_bed_path_resolved}")
     else: param_display_lines.append(f"  [white]* gene_bed:[/]: [dim]Not provided/found[/]")
     if reference_id: param_display_lines.append(f"  [white]* reference_id:[/]: {reference_id}")
-    param_display_lines.append(f"  [white]* output_dir:[/]: {job_dir}") # Show the full job dir
+    param_display_lines.append(f"  [white]* output_dir:[/]: {job_dir}")
+    param_display_lines.append(f"  [white]* execution_mode:[/]: {'[bold yellow]Slurm[/]' if slurm else '[bold green]Direct[/]'}")
     param_display_lines.append(f"  [white]* flanks:[/]: {'[bold green]Enabled[/]' if flanks else '[dim white]Disabled[/]'}")
     param_display_lines.append(f"  [white]* plots:[/]: {'[bold green]Enabled[/]' if plots else '[dim white]Disabled[/]'}")
     param_display_lines.append(f"  [white]* intrim_dir_name:[/]: {intrim_dir_name}")
@@ -614,30 +641,182 @@ def main(
         run_mode_message = "Running Mode: [bold]FASTA-Only Analysis[/]"
     console.print(Panel(run_mode_message, title="[dim]Run Mode[/]", border_style="dim", padding=(0,1)))
 
+    # --- Prepare for Execution ---
+    main_out_dir = job_dir / "output" / "main"
+    intrim_out_dir = job_dir / "output" / intrim_dir_name
+    main_out_dir.mkdir(parents=True, exist_ok=True)
+    intrim_out_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Execution Logic ---
+    if slurm:
+        run_slurm_submission(
+            job_id=job_id, job_dir=str(job_dir), main_dir=str(main_out_dir), intrim_dir=str(intrim_out_dir),
+            fasta_path=str(fasta_path), cat_path=str(cat_path) if cat_path else None,
+            gene_bed_path=str(gene_bed_path_resolved) if gene_bed_path_resolved else None,
+            reference_id=reference_id, flanks=flanks, logger=logger,
+            # Re-create perf_params as a dict for SlurmManager
+            perf_params={k: v for k, v in locals().items() if k in ['mono', 'di', 'tri', 'tetra', 'penta', 'hexa', 'minLen', 'maxLen', 'unfair', 'thread', 'min_repeat_count', 'min_genome_count']}
+        )
+    else:
+        run_direct_analysis(
+            job_id=job_id, job_dir=job_dir, main_out_dir=main_out_dir, intrim_out_dir=intrim_out_dir,
+            fasta_path=fasta_path, cat_path=cat_path, gene_bed_path_resolved=gene_bed_path_resolved,
+            reference_id=reference_id, flanks=flanks, plots=plots, intrim_dir_name=intrim_dir_name,
+            logger=logger, console=console, start_time=start_time,
+            # Pass all other params directly
+            **{k: v for k, v in locals().items() if k not in ['job_id', 'job_dir', 'main_out_dir', 'intrim_out_dir', 'fasta_path', 'cat_path', 'gene_bed_path_resolved', 'reference_id', 'flanks', 'plots', 'intrim_dir_name', 'logger', 'console', 'start_time']}
+        )
+
+
+# --- Mode-Specific Functions ---
+
+def run_api_mode():
+    """Starts the FastAPI server."""
+    console.print(Panel("[bold green]Starting API Mode...[/]", border_style="green"))
     try:
-        # Create directory structure
-        # job_dir is already an absolute Path object
-        main_out_dir = job_dir / "output" / "main" # Use Path operators
-        intrim_out_dir = job_dir / "output" / intrim_dir_name # Use the provided name
+        import uvicorn
+        # Use environment variables for host/port, falling back to defaults
+        host = os.getenv("CROSSROAD_HOST", "0.0.0.0")
+        port = int(os.getenv("CROSSROAD_PORT", "8000"))
+        console.print(f"Server will run on [bold cyan]http://{host}:{port}[/]")
+        
+        # We need to pass the app as a string to allow uvicorn's reloading to work
+        uvicorn.run("crossroad.api.main:app", host=host, port=port, reload=True)
+        
+    except ImportError:
+        console.print("[bold red]Error:[/] `uvicorn` and `fastapi` must be installed to run in API mode.")
+        console.print("Install them with: [yellow]pip install 'crossroad[api]'[/] or [yellow]pip install uvicorn fastapi python-multipart[/]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Failed to start API server: {e}[/]")
+        raise typer.Exit(1)
 
-        main_out_dir.mkdir(parents=True, exist_ok=True)
-        intrim_out_dir.mkdir(parents=True, exist_ok=True)
+def run_job_status_mode(job_id: str):
+    """Queries and displays the status of a given job ID."""
+    console.print(Panel(f"[bold green]Querying Status for Job ID:[/bold green] [yellow]{job_id}[/yellow]", border_style="green"))
+    status_file = config.JOB_OUTPUT_DIR / job_id / "status.json"
 
+    if not status_file.exists():
+        console.print(f"[bold red]Error:[/] Status file not found for job '{job_id}' at {status_file}")
+        raise typer.Exit(1)
+
+    try:
+        with open(status_file, 'r') as f:
+            data = json.load(f)
+        
+        status = data.get("status", "UNKNOWN").upper()
+        color = "white"
+        if status == JobStatus.COMPLETED.value.upper():
+            color = "green"
+        elif status == JobStatus.FAILED.value.upper():
+            color = "red"
+        elif status == JobStatus.RUNNING.value.upper():
+            color = "yellow"
+        elif status == JobStatus.QUEUED.value.upper():
+            color = "cyan"
+
+        status_text = Text(f"  Status: ", style="bold")
+        status_text.append(status, style=f"bold {color}")
+
+        panel_content = [
+            f"[bold]Job ID:[/] {job_id}",
+            status_text,
+            f"[bold]Message:[/] {data.get('message', 'N/A')}",
+            f"[bold]Progress:[/] {data.get('progress', 0.0):.1%}",
+            f"[bold]Slurm Job ID:[/] {data.get('slurm_job_id', 'N/A')}",
+            f"[bold]Last Updated:[/] {data.get('updated_at', data.get('completed_at', 'N/A'))}",
+        ]
+        if data.get("error_details"):
+            panel_content.append(f"\n[bold red]Error Details:[/]\n{data['error_details']}")
+
+        console.print(Panel("\n".join(map(str, panel_content)), title="[blue]Job Status[/]", border_style="blue", padding=(1,2)))
+
+    except (json.JSONDecodeError, KeyError) as e:
+        console.print(f"[bold red]Error:[/] Could not parse status file {status_file}. Error: {e}")
+        raise typer.Exit(1)
+
+def run_slurm_submission(**kwargs):
+    """Handles the logic for submitting a job to Slurm."""
+    logger = kwargs['logger']
+    job_id = kwargs['job_id']
+    
+    console.print(Panel(f"[bold yellow]Preparing Slurm submission for Job ID: {job_id}[/]", border_style="yellow"))
+    
+    # The task_params for SlurmManager need to be constructed carefully
+    # It expects a dictionary similar to the one created in the API
+    task_params = kwargs.copy()
+    
+    try:
+        manager = SlurmManager(job_id=job_id, task_params=task_params)
+        slurm_job_id = manager.submit()
+        
+        # Create an initial status.json file
+        status_payload = {
+            "status": JobStatus.QUEUED.value,
+            "message": f"Job submitted to Slurm with ID: {slurm_job_id}",
+            "progress": 0.0,
+            "slurm_job_id": slurm_job_id,
+            "submitted_at": datetime.now().isoformat()
+        }
+        status_file = Path(kwargs['job_dir']) / "status.json"
+        with open(status_file, 'w') as f:
+            json.dump(status_payload, f, indent=4)
+
+        console.print(Panel(
+            f"Successfully submitted job to Slurm.\n"
+            f"  [bold]Crossroad Job ID:[/] [yellow]{job_id}[/]\n"
+            f"  [bold]Slurm Job ID:[/] [yellow]{slurm_job_id}[/]\n\n"
+            f"Track status with: [cyan]crossroad --job-status {job_id}[/]",
+            title="[bold green]Submission Successful[/]",
+            border_style="green"
+        ))
+
+    except (RuntimeError, FileNotFoundError) as e:
+        logger.error(f"Slurm submission failed: {e}", exc_info=True)
+        console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(1)
+
+
+def run_direct_analysis(**kwargs):
+    """Runs the full analysis pipeline directly in the current process."""
+    # Unpack kwargs for clarity
+    job_id = kwargs['job_id']
+    job_dir = kwargs['job_dir']
+    main_out_dir = kwargs['main_out_dir']
+    intrim_out_dir = kwargs['intrim_out_dir']
+    fasta_path = kwargs['fasta_path']
+    cat_path = kwargs['cat_path']
+    gene_bed_path_resolved = kwargs['gene_bed_path_resolved']
+    reference_id = kwargs['reference_id']
+    flanks = kwargs['flanks']
+    plots = kwargs['plots']
+    intrim_dir_name = kwargs['intrim_dir_name']
+    logger = kwargs['logger']
+    console = kwargs['console']
+    start_time = kwargs['start_time']
+    
+    try:
         # Use Rich Rule for stage separation
         console.print(Rule("[bold blue]Stage 1: Genome Quality Assessment & SSR Detection", style="blue"))
 
         # --- Run M2 pipeline ---
-        # Note: m2.main expects string paths and a Namespace/dict. Convert Paths to strings.
-        # Ensure core modules can handle Namespace or adapt if they expect dicts
         m2_args_ns = Namespace(
             fasta=str(fasta_path),
             cat=str(cat_path) if cat_path else None,
             out=str(main_out_dir),
-            tmp=str(intrim_out_dir), # Pass the intermediate dir path
+            tmp=str(intrim_out_dir),
             flanks=flanks,
             logger=logger,
-            mono=mono, di=di, tri=tri, tetra=tetra, penta=penta, hexa=hexa,
-            minLen=min_len, maxLen=max_len, unfair=unfair, thread=threads
+            mono=kwargs['mono'],
+            di=kwargs['di'],
+            tri=kwargs['tri'],
+            tetra=kwargs['tetra'],
+            penta=kwargs['penta'],
+            hexa=kwargs['hexa'],
+            minLen=kwargs['min_len'],
+            maxLen=kwargs['max_len'],
+            unfair=kwargs['unfair'],
+            thread=kwargs['threads']
         )
         with Progress(
             SpinnerColumn(spinner_name="aesthetic"),
@@ -686,8 +865,8 @@ def main(
                 tmp=str(intrim_out_dir),
                 logger=logger,
                 reference=reference_id,
-                min_repeat_count=min_repeat_count,
-                min_genome_count=min_genome_count
+                min_repeat_count=kwargs['min_repeat_count'],
+                min_genome_count=kwargs['min_genome_count']
             )
 
             with Progress(
