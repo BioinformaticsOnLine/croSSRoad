@@ -4,12 +4,21 @@ import os
 import pandas as pd
 import logging
 
-def group_records(df, logger):
+def group_records(df, logger, dynamic_column):
     """Group records by motif and gene, combining other fields with ':'."""
+    # Base columns that are always expected
     columns = ['motif', 'gene', 'genomeID', 'repeat', 'length_of_motif',
-               'loci', 'length_of_ssr', 'category', 'country', 'year',
+               'loci', 'length_of_ssr', 'category', 'year',
                'ssr_position']
-    grouped = df[columns].groupby(['motif', 'gene'], as_index=False)
+    
+    # Add the dynamic column if it exists in the dataframe
+    if dynamic_column in df.columns:
+        columns.append(dynamic_column)
+    
+    # Filter df to only include columns that actually exist to prevent KeyErrors
+    existing_columns = [col for col in columns if col in df.columns]
+    
+    grouped = df[existing_columns].groupby(['motif', 'gene'], as_index=False)
     merged = grouped.agg(lambda x: ': '.join(map(str, x.unique())))
     merged['repeat_count'] = merged['repeat'].str.count(':') + 1
     merged['genomeID_count'] = merged['genomeID'].str.count(':') + 1
@@ -52,6 +61,7 @@ def main(args=None):
         parser.add_argument("--tmp", required=True, help="Directory for intermediate files") # Keep arg name as tmp
         parser.add_argument("--min_repeat_count", type=int, default=1, help="Minimum repeat count")
         parser.add_argument("--min_genome_count", type=int, default=4, help="Minimum genome count")
+        parser.add_argument("--dynamic_column", required=True, help="Name of the dynamic metadata column.")
         args = parser.parse_args()
         logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger(__name__)
@@ -98,12 +108,12 @@ def main(args=None):
             logger.info(f"Total rows in combined file: {len(combined_df)}")
             
             # Continue with the rest of the process using just the different rows
-            all_records_df = group_records(combined_df, logger)
+            all_records_df = group_records(combined_df, logger, args.dynamic_column)
         else:
             logger.info("No records found")
             return files
     else:
-        all_records_df = group_records(ssrcombo_df, logger)
+        all_records_df = group_records(ssrcombo_df, logger, args.dynamic_column)
 
     # Save all variations
     all_records_df.to_csv(files['all_vars'], index=False)
@@ -184,7 +194,11 @@ def main(args=None):
     mutational_hotspot_df_path = os.path.join(intrim_dir, "mh_tmp.csv") # Use renamed variable
     mutational_hotspot_df.to_csv(mutational_hotspot_df_path, index=False)
     # Drop the specified columns from the cleaned version
-    columns_to_drop = ['genomeID', 'repeat', 'category', 'country', 'year', 'ssr_position']
+    columns_to_drop = ['genomeID', 'repeat', 'category', 'year', 'ssr_position']
+    # Also drop the dynamic column, which is passed as an argument
+    if args.dynamic_column in mutational_hotspot_df.columns:
+        columns_to_drop.append(args.dynamic_column)
+
     for col in columns_to_drop:
         if col in mutational_hotspot_df.columns:
             mutational_hotspot_df = mutational_hotspot_df.drop(columns=[col])
@@ -197,6 +211,31 @@ def main(args=None):
 
     # Process and save HSSR data
     hssr_df = process_hssr(filtered_hotspot_df, ssrcombo_df, logger)
+
+    # --- FIX: Merge dynamic column back into HSSR data ---
+    # The dynamic column can be lost during the gc2.py step. We need to re-merge it
+    # to ensure it's available for downstream plotting.
+    merged_out_path = os.path.join(os.path.dirname(args.ssrcombo), 'mergedOut.tsv')
+    if os.path.exists(merged_out_path) and args.dynamic_column not in hssr_df.columns:
+        logger.info(f"Re-merging dynamic column '{args.dynamic_column}' from {os.path.basename(merged_out_path)} into HSSR data...")
+        try:
+            # Read the source of truth for metadata, keeping only unique genome IDs
+            metadata_df = pd.read_csv(
+                merged_out_path, 
+                sep='\t', 
+                usecols=['genomeID', args.dynamic_column]
+            ).drop_duplicates(subset=['genomeID'])
+            
+            # Merge it into the hssr_df
+            hssr_df = pd.merge(hssr_df, metadata_df, on='genomeID', how='left')
+            logger.info(f"Successfully merged dynamic column. HSSR data now has columns: {hssr_df.columns.tolist()}")
+        except Exception as e:
+            logger.error(f"Failed to re-merge dynamic column into HSSR data: {e}")
+    elif not os.path.exists(merged_out_path):
+        logger.warning(f"Could not find {merged_out_path} to re-merge dynamic column.")
+    else:
+        logger.info("Dynamic column already present in HSSR data. No merge needed.")
+
     hssr_df.to_csv(files['hssr'], index=False)
     
     

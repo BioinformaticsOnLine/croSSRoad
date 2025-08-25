@@ -35,24 +35,22 @@ def color_to_plotly_rgba(color_input, alpha=1.0):
 
 # --- Plotting Function ---
 
-def create_gene_country_sankey(df, output_dir):
+def create_gene_country_sankey(df, output_dir, dynamic_column):
     """
     Creates a publication-quality Sankey diagram visualizing the flow
-    of genomes from genes to countries, with summary statistics and export options.
+    of genomes from genes to a dynamic metadata column (e.g., country), with summary statistics and export options.
     Saves outputs to the specified directory.
 
     Args:
-        df (pd.DataFrame): DataFrame containing 'gene', 'country', and 'genomeID' columns.
+        df (pd.DataFrame): DataFrame containing 'gene', the dynamic column, and 'genomeID' columns.
         output_dir (str): Base directory where plot-specific subdirectories will be created.
-
-    Returns:
-        None: Saves files directly.
+        dynamic_column (str): The name of the column to use for the right side of the Sankey.
     """
-    plot_name = "gene_country_sankey"
+    plot_name = f"gene_{dynamic_column}_sankey"
     logger.info(f"Processing data for {plot_name}...")
 
     # --- Basic Validation and Type Conversion ---
-    required_cols = ['gene', 'country', 'genomeID']
+    required_cols = ['gene', dynamic_column, 'genomeID']
     if not all(col in df.columns for col in required_cols):
         missing = [col for col in required_cols if col not in df.columns]
         logger.error(f"{plot_name}: Missing required columns: {missing}")
@@ -62,7 +60,7 @@ def create_gene_country_sankey(df, output_dir):
 
     # Ensure correct types
     df_proc['gene'] = df_proc['gene'].astype(str)
-    df_proc['country'] = df_proc['country'].astype(str)
+    df_proc[dynamic_column] = df_proc[dynamic_column].astype(str)
     df_proc['genomeID'] = df_proc['genomeID'].astype(str)
 
     if df_proc.empty:
@@ -71,7 +69,7 @@ def create_gene_country_sankey(df, output_dir):
 
     # --- Data Aggregation ---
     logger.info(f"{plot_name}: Aggregating genome counts...")
-    link_data = df_proc.groupby(['gene', 'country'])['genomeID'].nunique().reset_index()
+    link_data = df_proc.groupby(['gene', dynamic_column])['genomeID'].nunique().reset_index()
     link_data = link_data[link_data['genomeID'] > 0]
 
     if link_data.empty:
@@ -81,14 +79,14 @@ def create_gene_country_sankey(df, output_dir):
     # --- Prepare Nodes and Links for Sankey ---
     logger.info(f"{plot_name}: Preparing nodes and links...")
     unique_genes = sorted(link_data['gene'].unique())
-    unique_countries = sorted(link_data['country'].unique())
+    unique_dynamic_values = sorted(link_data[dynamic_column].unique())
 
-    nodes = unique_genes + unique_countries
+    nodes = unique_genes + unique_dynamic_values
     node_map = {name: i for i, name in enumerate(nodes)}
 
     # Assign colors: Use Plotly palettes for both
     num_genes = len(unique_genes)
-    num_countries = len(unique_countries)
+    num_dynamic_values = len(unique_dynamic_values)
 
     # Gene colors (using Plotly qualitative palette - hex strings)
     gene_colors_hex = px.colors.qualitative.Plotly[:num_genes]
@@ -97,19 +95,19 @@ def create_gene_country_sankey(df, output_dir):
         if len(gene_colors_hex) < num_genes:
             gene_colors_hex.extend(['#CCCCCC'] * (num_genes - len(gene_colors_hex))) # Fallback grey
 
-    # Country colors (using another Plotly palette - e.g., Pastel)
-    country_colors_hex = px.colors.qualitative.Pastel[:num_countries]
-    if len(country_colors_hex) < num_countries: # Handle palette running out
-        country_colors_hex.extend(px.colors.qualitative.Plotly[:num_countries - len(country_colors_hex)])
-        if len(country_colors_hex) < num_countries:
-             country_colors_hex.extend(['#AAAAAA'] * (num_countries - len(country_colors_hex))) # Darker Fallback grey
+    # Dynamic column value colors (using another Plotly palette - e.g., Pastel)
+    dynamic_colors_hex = px.colors.qualitative.Pastel[:num_dynamic_values]
+    if len(dynamic_colors_hex) < num_dynamic_values: # Handle palette running out
+        dynamic_colors_hex.extend(px.colors.qualitative.Plotly[:num_dynamic_values - len(dynamic_colors_hex)])
+        if len(dynamic_colors_hex) < num_dynamic_values:
+             dynamic_colors_hex.extend(['#AAAAAA'] * (num_dynamic_values - len(dynamic_colors_hex))) # Darker Fallback grey
 
     # Combine node colors (Plotly Sankey handles hex strings directly)
-    node_colors = gene_colors_hex + country_colors_hex
+    node_colors = gene_colors_hex + dynamic_colors_hex
 
     # Create source, target, value lists
     sources = [node_map[gene] for gene in link_data['gene']]
-    targets = [node_map[country] for country in link_data['country']]
+    targets = [node_map[val] for val in link_data[dynamic_column]]
     values = link_data['genomeID'].tolist()
 
     # Link colors - color by source (gene) node with transparency
@@ -127,7 +125,7 @@ def create_gene_country_sankey(df, output_dir):
 
     stats = {
         'total_genes': num_genes,
-        'total_countries': num_countries,
+        f'total_{dynamic_column}s': num_dynamic_values,
         'total_unique_genomes': total_unique_genomes,
         'total_links_shown': total_links,
         'total_genome_flow': total_flow,
@@ -168,13 +166,13 @@ def create_gene_country_sankey(df, output_dir):
 
     fig.update_layout(
         title=dict(
-            text="Genome Distribution: Hotspot Gene → Country", # Main title only
+            text=f"Genome Distribution: Hotspot Gene → {dynamic_column.replace('_', ' ').title()}", # Main title only
             font=title_font,
             x=0.5,
             xanchor='center'
         ),
         font=node_font,
-        height=max(700, num_genes * 25, num_countries * 25),
+        height=max(700, num_genes * 25, num_dynamic_values * 25),
         paper_bgcolor='white',
         plot_bgcolor='white',
         margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
@@ -183,7 +181,7 @@ def create_gene_country_sankey(df, output_dir):
     # --- Add Annotations ---
     stats_lines = ["<b>Summary Stats:</b>",
                    f"Hotspot Genes: {stats['total_genes']:,}",
-                   f"Countries: {stats['total_countries']:,}",
+                   f"{dynamic_column.replace('_', ' ').title()}: {stats[f'total_{dynamic_column}s']:,}",
                    f"Unique Genomes: {stats['total_unique_genomes']:,}",
                    f"Links Shown: {stats['total_links_shown']:,}",
                    f"Total Flow: {stats['total_genome_flow']:,}"]
@@ -212,7 +210,7 @@ def create_gene_country_sankey(df, output_dir):
     logger.info(f"{plot_name}: Preparing data for CSV export...")
     export_df = link_data.rename(columns={
         'gene': 'Source_Gene',
-        'country': 'Target_Country',
+        dynamic_column: f'Target_{dynamic_column.title()}',
         'genomeID': 'Genome_Count'
     })
 

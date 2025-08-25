@@ -1,6 +1,6 @@
 context:
   name: crossroad
-  version: 0.3.3
+  version: 0.3.4
   python_min: '3.9' # Updated Python requirement
 
 package:
@@ -51,6 +51,8 @@ requirements:
     - rich-click >=1.7.0 # Rich-enhanced Click help (Updated version)
     - argcomplete       # Shell tab-completion
     - upsetplot # <-- Add upsetplot here
+    - python-dotenv
+
 
 test:
   imports:

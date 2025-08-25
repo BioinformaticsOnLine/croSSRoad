@@ -69,16 +69,16 @@ def run_bedtools_intersect_no_overlap_genes(a_bed, gene_bed, out_file, work_dir,
     with open(out_file, 'w') as f:
         f.write(output)
 
-def assign_ssr_position(intersect_file, out_file, logger):
+def assign_ssr_position(intersect_file, out_file, logger, dynamic_column="optional_category"):
     """
     Reads the bedtools intersect output (tab-delimited) and produces the final SSR Gene Combo table.
     For example, if the intersect output has the following columns (0-based index):
       A side (mergedOut):
          0: genomeID, 1: start1, 2: end1, 3: repeat, 4: motif,
          5: GC_per, 6: AT_per, 7: length_of_motif, 8: loci, 9: length_of_ssr,
-      B side (gene BED):  
-         10: category, 11: country, 12: year, 13: length_genome, 14: N_count,
-         15: genome_GC_per, 16: genomeID2, 17: start2, 18: end2, 19: gene
+         10: category, 11: <dynamic_column>, 12: year, ...
+      B side (gene BED):
+         ...
     Then we assign the ssr_position based on comparing start1/end1 with start2/end2.
     """
     with open(intersect_file, 'r') as fin, open(out_file, 'w', newline='') as fout:
@@ -89,7 +89,7 @@ def assign_ssr_position(intersect_file, out_file, logger):
         header = [
             "genomeID", "start1", "end1", "repeat", "motif", "GC_per", "AT_per",
             "length_of_motif", "loci", "length_of_ssr",
-            "category", "country", "year", "length_genome", "N_count", "genome_GC_per",
+            "category", dynamic_column, "year", "length_genome", "N_count", "genome_GC_per",
             "genomeID2", "start2", "end2", "gene", "ssr_position"
         ]
         writer.writerow(header)
@@ -199,6 +199,9 @@ def main(args=None):
         parser.add_argument("--tmp", default="intrim", # Keep arg name as tmp, default to intrim
                             help="Directory for intermediate files; a job folder will be created inside this directory")
         
+        # Add argument to accept the dynamic column name
+        parser.add_argument("--dynamic_column", default="optional_category", help="Name of the dynamic metadata column.")
+        
         args = parser.parse_args()
         # Create default logger if running standalone
         logging.basicConfig(level=logging.INFO)
@@ -229,7 +232,8 @@ def main(args=None):
     no_overlap_genes_out = os.path.join(intrim_dir, "no_overlap_genes_output.bed") # Use renamed variable
     run_bedtools_intersect_no_overlap_genes(merged_bed, args.gene, no_overlap_genes_out, intrim_dir, logger) # Use renamed variable
 
-    assign_ssr_position(intersect_out, final_out, logger)
+    # Pass the dynamic column name to the assign_ssr_position function
+    assign_ssr_position(intersect_out, final_out, logger, dynamic_column=getattr(args, 'dynamic_column', 'optional_category'))
     write_non_gene_ssrs(no_overlap_out, non_gene_out, args.merged)
     genes_without_ssr = write_non_ssr_genes(no_overlap_genes_out, non_ssr_genes_out)
     genes_with_ssr = count_genes_with_ssr(intersect_out)

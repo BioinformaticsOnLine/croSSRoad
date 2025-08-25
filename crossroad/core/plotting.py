@@ -85,7 +85,7 @@ def check_skip_key():
 
 # --- Main Orchestration Function ---
 
-def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_plots_dir, reference_id=None):
+def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_plots_dir, reference_id=None, dynamic_column=None):
     """
     Loads data, generates plots, and saves them.
     Prioritizes 'mergedOut.tsv' from job_output_main_dir for full plotting.
@@ -213,8 +213,8 @@ def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_pl
     # Define plots to generate along with their requirements
     plot_definitions = [
         # Plot Name, Function, Data Source(s) list, Required Columns list, FASTA-only skip reason (str or None)
-        ("Category->Country Sankey", create_category_country_sankey, [df_plot_source], ['category', 'country'], "Requires category/country data"),
-        ("Gene->Country Sankey", create_gene_country_sankey, [df_hssr], ['gene', 'country'], "Requires hssr_data.csv"),
+        (f"Category->{dynamic_column.title()} Sankey", create_category_country_sankey, [df_plot_source], ['category', dynamic_column], "Requires category/country data"),
+        (f"Gene->{dynamic_column.title()} Sankey", create_gene_country_sankey, [df_hssr], ['gene', dynamic_column], "Requires hssr_data.csv"),
         ("Motif Repeat Count (Hotspot)", create_hotspot_plot, [df_hotspot], ['motif', 'repeat_count'], "Requires mutational_hotspot.csv"),
         ("SSR Conservation", create_ssr_conservation_plot, [df_plot_source], ['genomeID', 'loci'], None), # Works in both modes
         ("Motif Conservation", create_motif_conservation_plot, [df_plot_source], ['genomeID', 'motif'], None), # Works in both modes
@@ -223,7 +223,7 @@ def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_pl
         ("SSR GC Distribution", create_ssr_gc_plot, [df_plot_source], ['genomeID', 'GC_per'], None), # Works in both modes
         ("SSR Gene Intersection", create_ssr_gene_intersect_plot, [df_ssr_gene], ['gene', 'ssr_position'], "Requires ssr_genecombo.tsv"),
         ("Temporal Faceted Scatter", create_temporal_faceted_scatter, [df_hssr], ['motif', 'year', 'length_of_ssr', 'gene', 'genomeID'], "Requires hssr_data.csv"),
-        ("UpSet", create_upset_plot, [df_plot_source], ['motif', 'category', 'genomeID', 'GC_per', 'country'], "Requires category/country data"),
+        ("UpSet", create_upset_plot, [df_plot_source], ['motif', 'category', 'genomeID', 'GC_per', dynamic_column], "Requires category/country data"),
         ("Motif Distribution Heatmap", create_motif_distribution_heatmap, [df_plot_source], ['genomeID', 'loci'], None), # Works in both modes
         # Special plots handled separately below: Reference SSR, Gene Motif Dot Plot
     ]
@@ -285,6 +285,10 @@ def generate_all_plots(job_output_main_dir, job_output_intrim_dir, job_output_pl
                 # Prepare arguments for the plot function - pass copies
                 plot_args = [df.copy() for df in data_sources if df is not None]
                 plot_args.append(job_output_plots_dir) # Add output dir
+                
+                # Add dynamic_column argument if the function is one of the updated ones
+                if plot_func in [create_category_country_sankey, create_gene_country_sankey, create_motif_distribution_heatmap]:
+                    plot_args.append(dynamic_column)
 
                 # Call the plot function
                 plot_func(*plot_args) # Unpack arguments

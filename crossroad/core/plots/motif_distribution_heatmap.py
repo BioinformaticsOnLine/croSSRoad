@@ -10,18 +10,16 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-def create_motif_distribution_heatmap(df, output_dir): # Renamed function
+def create_motif_distribution_heatmap(df, output_dir, dynamic_column): # Renamed function
     """
     Creates a heatmap visualizing the count of specific motifs within each genome,
     optionally excluding motifs present in all genomes.
 
     Args:
         df (pd.DataFrame): DataFrame which might be from reformatted.tsv (needs 'genomeID', 'motif')
-                           or mergedOut.tsv (potentially includes 'category', 'country', 'year').
+                           or mergedOut.tsv (potentially includes 'category', the dynamic column, 'year').
         output_dir (str): Base directory where plot-specific subdirectories will be created.
-
-    Returns:
-        None: Saves files directly.
+        dynamic_column (str): The name of the dynamic metadata column to use.
     """
     plot_name = "motif_distribution_heatmap" # Renamed plot as it now shows motifs
     logger.info(f"Processing data for {plot_name} plot...")
@@ -44,17 +42,25 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
         return
 
     # --- Prepare Metadata (if available) ---
-    metadata_cols = ['category', 'country', 'year']
-    has_metadata = all(col in df.columns for col in metadata_cols)
+    metadata_cols = ['category', dynamic_column, 'year']
+    # Check which of the potential metadata columns are actually in the dataframe
+    available_metadata_cols = [col for col in metadata_cols if col in df.columns]
+    
+    has_metadata = 'category' in available_metadata_cols and dynamic_column in available_metadata_cols
+
     genome_metadata = {}
     if has_metadata:
-        logger.info(f"{plot_name}: Found metadata columns ({', '.join(metadata_cols)}). Preparing annotations.")
+        logger.info(f"{plot_name}: Found metadata columns ({', '.join(available_metadata_cols)}). Preparing annotations.")
         # Get unique metadata per genomeID
-        meta_df = df[['genomeID'] + metadata_cols].drop_duplicates(subset=['genomeID']).set_index('genomeID')
+        meta_df = df[['genomeID'] + available_metadata_cols].drop_duplicates(subset=['genomeID']).set_index('genomeID')
         # Store category separately for sorting
         genome_categories = meta_df['category'].to_dict()
-        # Create a formatted string for each genome
-        genome_metadata = meta_df.apply(lambda row: f"{row['category']} | {row['country']} | {row['year']}", axis=1).to_dict()
+        # Create a formatted string for each genome, handling missing 'year' gracefully
+        def format_metadata(row):
+            year_str = row.get('year', 'N/A')
+            return f"{row.get('category', 'N/A')} | {row.get(dynamic_column, 'N/A')} | {year_str}"
+        
+        genome_metadata = meta_df.apply(format_metadata, axis=1).to_dict()
     else:
         logger.info(f"{plot_name}: Metadata columns not found. Proceeding without genome annotations.")
 
@@ -173,7 +179,7 @@ def create_motif_distribution_heatmap(df, output_dir): # Renamed function
         height=plot_height,
         width=plot_width,
         xaxis_title=dict(text='Motif', font=axis_label_font), # Update x-axis title
-        yaxis_title=dict(text='Genome ID' + (' (Category | Country | Year)' if has_metadata else ''), font=axis_label_font), # Update y-axis title
+        yaxis_title=dict(text=f"Genome ID (Category | {dynamic_column.replace('_', ' ').title()} | Year)" if has_metadata else 'Genome ID', font=axis_label_font), # Update y-axis title
         xaxis=dict(tickangle=-90, tickfont=tick_font, automargin=True), # Steeper angle
         yaxis=dict(tickfont=tick_font, automargin=True),
         paper_bgcolor='white',

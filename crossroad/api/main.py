@@ -351,6 +351,7 @@ def run_analysis_pipeline(
     perf_params: PerfParams,
     flanks: bool,
     logger: logging.Logger,
+    dynamic_column: str,
     status_update_callback: Optional[Callable] = None,
     **kwargs # To absorb unused params like 'loop' or 'input_dir'
 ):
@@ -412,7 +413,8 @@ def run_analysis_pipeline(
                 update_status("GC2 complete. Processing SSR results...", 0.7)
                 ssr_args = argparse.Namespace(
                     ssrcombo=ssr_combo, jobOut=main_dir, tmp=intrim_dir, logger=logger, reference=reference_id,
-                    min_repeat_count=perf_params.min_repeat_count, min_genome_count=perf_params.min_genome_count
+                    min_repeat_count=perf_params.min_repeat_count, min_genome_count=perf_params.min_genome_count,
+                    dynamic_column=dynamic_column
                 )
                 process_ssr_results.main(ssr_args)
                 logger.info(f"SSR result processing completed for job {job_id}")
@@ -516,6 +518,18 @@ async def analyze_ssr_endpoint(
     except Exception as e:
          raise HTTPException(status_code=400, detail=f"Invalid performance parameters: {e}")
 
+    # --- Determine Dynamic Column Name from Uploaded File ---
+    dynamic_column_name = 'optional_category' # Default
+    if cat_path:
+        try:
+            with open(cat_path, 'r') as f:
+                header = f.readline().strip().split('\t')
+                if len(header) >= 3:
+                    dynamic_column_name = header[2]
+                    logger.info(f"Detected dynamic column from API upload: '{dynamic_column_name}'")
+        except Exception as e:
+            logger.warning(f"Could not read header from uploaded categories file. Defaulting to '{dynamic_column_name}'. Error: {e}")
+
     # Prepare task parameters dictionary
     task_params = {
         "job_id": job_id, "job_dir": str(job_dir), "main_dir": str(main_dir),
@@ -523,7 +537,8 @@ async def analyze_ssr_endpoint(
         "cat_path": str(cat_path) if cat_path else None,
         "gene_bed_path": str(gene_bed_path) if gene_bed_path else None,
         "reference_id": reference_id, "perf_params": perf_params_obj,
-        "flanks": flanks, "logger": logger
+        "flanks": flanks, "logger": logger,
+        "dynamic_column": dynamic_column_name
     }
 
     # --- Execute based on mode ---

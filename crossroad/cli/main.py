@@ -367,7 +367,7 @@ def main(
         "-g", "--genome-threshold", # Changed long flag name
         help="Genome count Threshold for hotspot filtering (keeps records > this value).",
         rich_help_panel="Filtering Parameters"
-    )] = 4,
+    )] = 2,
 
     # --- Performance & Output Group ---
     threads: Annotated[int, typer.Option(
@@ -647,6 +647,18 @@ def main(
     main_out_dir.mkdir(parents=True, exist_ok=True)
     intrim_out_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- Determine Dynamic Column Name ---
+    dynamic_column_name = 'optional_category' # Default
+    if cat_path:
+        try:
+            with open(cat_path, 'r') as f:
+                header = f.readline().strip().split('\t')
+                if len(header) >= 3:
+                    dynamic_column_name = header[2]
+                    logger.info(f"Detected dynamic column name: '{dynamic_column_name}'")
+        except Exception as e:
+            logger.warning(f"Could not read header from {cat_path} to determine dynamic column. Defaulting to '{dynamic_column_name}'. Error: {e}")
+
     # --- Execution Logic ---
     if slurm:
         run_slurm_submission(
@@ -654,6 +666,7 @@ def main(
             fasta_path=str(fasta_path), cat_path=str(cat_path) if cat_path else None,
             gene_bed_path=str(gene_bed_path_resolved) if gene_bed_path_resolved else None,
             reference_id=reference_id, flanks=flanks, logger=logger,
+            dynamic_column=dynamic_column_name,
             # Re-create perf_params as a dict for SlurmManager
             perf_params={k: v for k, v in locals().items() if k in ['mono', 'di', 'tri', 'tetra', 'penta', 'hexa', 'minLen', 'maxLen', 'unfair', 'thread', 'min_repeat_count', 'min_genome_count']}
         )
@@ -663,8 +676,9 @@ def main(
             fasta_path=fasta_path, cat_path=cat_path, gene_bed_path_resolved=gene_bed_path_resolved,
             reference_id=reference_id, flanks=flanks, plots=plots, intrim_dir_name=intrim_dir_name,
             logger=logger, console=console, start_time=start_time,
+            dynamic_column=dynamic_column_name,
             # Pass all other params directly
-            **{k: v for k, v in locals().items() if k not in ['job_id', 'job_dir', 'main_out_dir', 'intrim_out_dir', 'fasta_path', 'cat_path', 'gene_bed_path_resolved', 'reference_id', 'flanks', 'plots', 'intrim_dir_name', 'logger', 'console', 'start_time']}
+            **{k: v for k, v in locals().items() if k not in ['job_id', 'job_dir', 'main_out_dir', 'intrim_out_dir', 'fasta_path', 'cat_path', 'gene_bed_path_resolved', 'reference_id', 'flanks', 'plots', 'intrim_dir_name', 'logger', 'console', 'start_time', 'dynamic_column']}
         )
 
 
@@ -747,6 +761,8 @@ def run_slurm_submission(**kwargs):
     task_params = kwargs.copy()
     
     try:
+        # Add dynamic column to task_params for slurm
+        task_params['dynamic_column'] = kwargs.get('dynamic_column', 'optional_category')
         manager = SlurmManager(job_id=job_id, task_params=task_params)
         slurm_job_id = manager.submit()
         
@@ -794,6 +810,7 @@ def run_direct_analysis(**kwargs):
     logger = kwargs['logger']
     console = kwargs['console']
     start_time = kwargs['start_time']
+    dynamic_column = kwargs['dynamic_column']
     
     try:
         # Use Rich Rule for stage separation
@@ -843,7 +860,8 @@ def run_direct_analysis(**kwargs):
                 gene=str(gene_bed_path_resolved), # Use resolved path
                 jobOut=str(main_out_dir),
                 tmp=str(intrim_out_dir),
-                logger=logger
+                logger=logger,
+                dynamic_column=dynamic_column
             )
             with Progress(
                 SpinnerColumn(spinner_name="aesthetic"),
@@ -866,7 +884,8 @@ def run_direct_analysis(**kwargs):
                 logger=logger,
                 reference=reference_id,
                 min_repeat_count=kwargs['min_repeat_count'],
-                min_genome_count=kwargs['min_genome_count']
+                min_genome_count=kwargs['min_genome_count'],
+                dynamic_column=dynamic_column
             )
 
             with Progress(
@@ -907,7 +926,7 @@ def run_direct_analysis(**kwargs):
                     try:
                         from crossroad.core.plotting import generate_all_plots
                         # Pass string paths as expected by the current plotting function
-                        generate_all_plots(str(main_out_dir), str(intrim_out_dir), str(plots_output_dir), reference_id)
+                        generate_all_plots(str(main_out_dir), str(intrim_out_dir), str(plots_output_dir), reference_id, dynamic_column)
                     except ImportError:
                          logger.error("Plotting libraries not found. Please install them (e.g., plotly, plotly-upset) to generate plots.")
                          raise # Re-raise to indicate failure

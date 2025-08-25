@@ -178,36 +178,44 @@ def reformat_perf(perf_out, reformatted):
 
 def merge_categories(ssr_file, cat_file, stats_file, out_file):
     """Merge SSR data with category and stats data, handling missing values appropriately."""
-    # Read files with specific dtype settings
     ssr_df = pd.read_csv(ssr_file, sep="\t")
     
-    # Read categories file with specific dtypes to prevent automatic conversion
-    cat_df = pd.read_csv(cat_file, sep="\t", 
-                        dtype={
-                            'genomeID': str,
-                            'category': str,
-                            'country': str,
-                            'year': str  # Read year as string initially
-                        })
+    # Read categories file, treating all data as strings to avoid type issues.
+    cat_df = pd.read_csv(cat_file, sep="\t", dtype=str)
     
+    # If the categories file has fewer than 3 columns, add a default one.
+    if len(cat_df.columns) < 3:
+        cat_df['optional_category'] = 'undefined'
+
     stats_df = pd.read_csv(stats_file, sep="\t")
     
-    # Merge the dataframes
+    # Merge the dataframes. Pandas will use the column names as they are.
     merged = (ssr_df.merge(cat_df, on="genomeID", how="left")
              .merge(stats_df, on="genomeID", how="left"))
     
-    # Handle year column
-    def process_year(year):
-        if pd.isna(year) or year == '' or year == 'NA':
-            return 'undefined'
-        try:
-            # Convert to integer if possible
-            return str(int(float(year)))
-        except (ValueError, TypeError):
-            return 'undefined'
-    
-    # Process the year column
-    merged['year'] = merged['year'].apply(process_year)
+    # Handle 'year' column if it exists, otherwise do nothing.
+    if 'year' in merged.columns:
+        def process_year(year):
+            if pd.isna(year) or year == '' or year == 'NA':
+                return 'undefined'
+            try:
+                return str(int(float(year)))
+            except (ValueError, TypeError):
+                return 'undefined'
+        merged['year'] = merged['year'].apply(process_year)
+
+    # Fill NaN values that may have been introduced by the left merge.
+    # Get the dynamic column name (it's the 3rd column from cat_df)
+    dynamic_col_name = None
+    if len(cat_df.columns) >= 3:
+        dynamic_col_name = cat_df.columns[2]
+        if dynamic_col_name in merged.columns:
+            merged[dynamic_col_name].fillna('undefined', inplace=True)
+
+    if 'category' in merged.columns:
+        merged['category'].fillna('undefined', inplace=True)
+    if 'year' in merged.columns:
+        merged['year'].fillna('undefined', inplace=True)
     
     # Write to file with controlled formatting
     merged.to_csv(out_file, sep="\t", index=False, na_rep='undefined')

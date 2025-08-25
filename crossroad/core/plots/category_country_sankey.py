@@ -17,24 +17,23 @@ logger = logging.getLogger(__name__)
 # Alpha will be added during link color generation.
 # --- Plotting Function ---
 
-def create_category_country_sankey(df, output_dir):
+def create_category_country_sankey(df, output_dir, dynamic_column):
     """
     Creates a publication-quality Sankey diagram visualizing the flow
-    of genomes from categories to countries, with summary statistics and export options.
+    of genomes from categories to a dynamic metadata column (e.g., country), 
+    with summary statistics and export options.
     Saves outputs to the specified directory.
 
     Args:
-        df (pd.DataFrame): DataFrame containing 'category', 'country', and 'genomeID' columns.
+        df (pd.DataFrame): DataFrame containing 'category', the dynamic column, and 'genomeID'.
         output_dir (str): Base directory where plot-specific subdirectories will be created.
-
-    Returns:
-        None: Saves files directly.
+        dynamic_column (str): The name of the column to use for the right side of the Sankey.
     """
-    plot_name = "category_country_sankey"
+    plot_name = f"category_{dynamic_column}_sankey"
     logger.info(f"Processing data for {plot_name}...")
 
     # --- Basic Validation and Type Conversion ---
-    required_cols = ['category', 'country', 'genomeID']
+    required_cols = ['category', dynamic_column, 'genomeID']
     if not all(col in df.columns for col in required_cols):
         missing = [col for col in required_cols if col not in df.columns]
         logger.error(f"{plot_name}: Missing required columns: {missing}")
@@ -44,7 +43,7 @@ def create_category_country_sankey(df, output_dir):
 
     # Ensure correct types
     df_proc['category'] = df_proc['category'].astype(str)
-    df_proc['country'] = df_proc['country'].astype(str)
+    df_proc[dynamic_column] = df_proc[dynamic_column].astype(str)
     df_proc['genomeID'] = df_proc['genomeID'].astype(str)
 
     if df_proc.empty:
@@ -53,7 +52,7 @@ def create_category_country_sankey(df, output_dir):
 
     # --- Data Aggregation ---
     logger.info(f"{plot_name}: Aggregating genome counts...")
-    link_data = df_proc.groupby(['category', 'country'])['genomeID'].nunique().reset_index()
+    link_data = df_proc.groupby(['category', dynamic_column])['genomeID'].nunique().reset_index()
     link_data = link_data[link_data['genomeID'] > 0]
 
     if link_data.empty:
@@ -63,14 +62,14 @@ def create_category_country_sankey(df, output_dir):
     # --- Prepare Nodes and Links for Sankey ---
     logger.info(f"{plot_name}: Preparing nodes and links...")
     unique_categories = sorted(link_data['category'].unique())
-    unique_countries = sorted(link_data['country'].unique())
+    unique_dynamic_values = sorted(link_data[dynamic_column].unique())
 
-    nodes = unique_categories + unique_countries
+    nodes = unique_categories + unique_dynamic_values
     node_map = {name: i for i, name in enumerate(nodes)}
 
     # --- Assign colors using Plotly palettes ---
     num_categories = len(unique_categories)
-    num_countries = len(unique_countries)
+    num_dynamic_values = len(unique_dynamic_values)
 
     # --- Generate Category Colors using HSL ---
     # Generate evenly spaced hues for categories
@@ -88,20 +87,19 @@ def create_category_country_sankey(df, output_dir):
         category_palette_px.append(f"rgb({rgb_0_255[0]}, {rgb_0_255[1]}, {rgb_0_255[2]})")
     logger.info(f"Generated {num_categories} HSL-based colors for categories.")
 
-    # --- Generate Country Colors using a standard palette (less likely to run out) ---
+    # --- Generate Dynamic Column Colors using a standard palette ---
+    dynamic_palette_px = px.colors.qualitative.Pastel[:num_dynamic_values]
+    if len(dynamic_palette_px) < num_dynamic_values: # Handle palette running out
+        dynamic_palette_px.extend(px.colors.qualitative.Plotly[:num_dynamic_values - len(dynamic_palette_px)])
+        if len(dynamic_palette_px) < num_dynamic_values:
+             dynamic_palette_px.extend(['#AAAAAA'] * (num_dynamic_values - len(dynamic_palette_px)))
 
-    country_palette_px = px.colors.qualitative.Pastel[:num_countries]
-    if len(country_palette_px) < num_countries: # Handle palette running out
-        country_palette_px.extend(px.colors.qualitative.Plotly[:num_countries - len(country_palette_px)])
-        if len(country_palette_px) < num_countries:
-             country_palette_px.extend(['#AAAAAA'] * (num_countries - len(country_palette_px))) # Darker Fallback grey
-
-    # Node colors can be directly assigned from the hex palettes
-    node_colors = category_palette_px + country_palette_px
+    # Node colors can be directly assigned from the palettes
+    node_colors = category_palette_px + dynamic_palette_px
 
     # Create source, target, value lists using the node map
     sources = [node_map[cat] for cat in link_data['category']]
-    targets = [node_map[country] for country in link_data['country']]
+    targets = [node_map[val] for val in link_data[dynamic_column]]
     values = link_data['genomeID'].tolist()
 
     # --- Link colors - color by source (category) node (alpha=0.6) ---
@@ -134,7 +132,7 @@ def create_category_country_sankey(df, output_dir):
 
     stats = {
         'total_categories': num_categories,
-        'total_countries': num_countries,
+        f'total_{dynamic_column}s': num_dynamic_values,
         'total_unique_genomes': total_unique_genomes,
         'total_links_shown': total_links,
         'total_genome_flow': total_flow,
@@ -163,7 +161,7 @@ def create_category_country_sankey(df, output_dir):
     )])
 
     # --- Customize Layout ---
-    title_text = "Genome Metadata Visualization (Category → Country)"
+    title_text = f"Genome Metadata Visualization (Category → {dynamic_column.replace('_', ' ').title()})"
     base_font_family = "Arial, sans-serif"
     title_font_size = 18
     axis_label_font_size = 12
@@ -189,7 +187,7 @@ def create_category_country_sankey(df, output_dir):
             xanchor='center'
         ),
         font=label_font,
-        height=max(700, num_categories * 25, num_countries * 25),
+        height=max(700, num_categories * 25, num_dynamic_values * 25),
         paper_bgcolor='white',
         plot_bgcolor='white',
         margin=dict(l=fixed_left_margin, r=fixed_right_margin, t=fixed_top_margin, b=fixed_bottom_margin),
@@ -198,7 +196,7 @@ def create_category_country_sankey(df, output_dir):
     # --- Add Annotations ---
     stats_lines = ["<b>Summary Stats:</b>",
                    f"Categories: {stats['total_categories']:,}",
-                   f"Countries: {stats['total_countries']:,}",
+                   f"{dynamic_column.replace('_', ' ').title()}: {stats[f'total_{dynamic_column}s']:,}",
                    f"Unique Genomes: {stats['total_unique_genomes']:,}",
                    f"Links Shown: {stats['total_links_shown']:,}",
                    f"Total Flow: {stats['total_genome_flow']:,}"]
@@ -226,7 +224,7 @@ def create_category_country_sankey(df, output_dir):
     logger.info(f"{plot_name}: Preparing data for CSV export...")
     export_df = link_data.rename(columns={
         'category': 'Source_Category',
-        'country': 'Target_Country',
+        dynamic_column: f'Target_{dynamic_column.title()}',
         'genomeID': 'Genome_Count'
     })
 

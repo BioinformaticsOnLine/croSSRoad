@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crossroad-cli"
-version = "0.3.3"
+version = "0.3.4"
 description = "A tool for analyzing SSRs in genomic data"
 readme = "README.md"
 authors = [
@@ -35,6 +35,8 @@ dependencies = [
     "argcomplete>=3.1.1",     # Shell tab-completion
     "pyarrow", # <-- Add pyarrow here
     "upsetplot", # <-- Add upsetplot here
+    "python-dotenv",  # <-- Add this
+
 ]
 
 [project.scripts]
