@@ -42,4 +42,4 @@ ENV/
 *.swp
 *.swo
 EOL
-
+.kilocode/mcp.json

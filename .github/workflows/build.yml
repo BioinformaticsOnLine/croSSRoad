@@ -1,0 +1,157 @@
+name: CrossRoad Conda Build and Upload
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+env:
+  PACKAGE_NAME: crossroad
+  ANACONDA_USER: jitendralab
+
+jobs:
+  build-conda:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-update-conda: true
+        python-version: '3.11'
+        miniforge-version: latest
+
+    - name: Install conda-build tools
+      shell: bash -l {0}
+      run: |
+        conda install -c conda-forge conda-build boa anaconda-client
+        conda info
+
+    - name: Configure conda channels
+      shell: bash -l {0}
+      run: |
+        conda config --remove channels defaults || true
+        conda config --add channels conda-forge
+        conda config --add channels bioconda
+        conda config --add channels ${{ env.ANACONDA_USER }}
+        conda config --set channel_priority flexible
+        conda config --show channels
+
+    - name: Get version and prepare wheel
+      shell: bash -l {0}
+      run: |
+        # Get version from pyproject.toml
+        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "Building CrossRoad version: $VERSION"
+        
+        # Build Python wheel first
+        python -m pip install --upgrade pip build
+        python -m build
+        
+        # Get wheel info
+        WHEEL_FILE=$(ls dist/*.whl)
+        WHEEL_SHA256=$(sha256sum "$WHEEL_FILE" | cut -d' ' -f1)
+        echo "Wheel: $WHEEL_FILE"
+        echo "SHA256: $WHEEL_SHA256"
+        
+        # Update recipe.yaml with correct version, wheel path and SHA256
+        sed -i "s|{% set version = \".*\" %}|{% set version = \"$VERSION\" %}|g" recipe.yaml
+        sed -i "s|crossroad_cli-.*-py3-none-any.whl|$(basename $WHEEL_FILE)|g" recipe.yaml
+        sed -i "s|sha256: .*|sha256: $WHEEL_SHA256|g" recipe.yaml
+        
+        echo "Updated recipe.yaml:"
+        head -20 recipe.yaml
+
+    - name: Build conda package
+      shell: bash -l {0}
+      run: |
+        # Build using recipe.yaml
+        conda mambabuild recipe.yaml --output-folder ./conda-dist/
+        
+        # Find the built package
+        BUILT_PACKAGE=$(find ./conda-dist/ -name "${{ env.PACKAGE_NAME }}-*.tar.bz2" | head -1)
+        echo "Built package: $BUILT_PACKAGE"
+        
+        if [ -z "$BUILT_PACKAGE" ]; then
+          echo "ERROR: No conda package found!"
+          find ./conda-dist/ -name "*.tar.bz2"
+          exit 1
+        fi
+        
+        # Store package path for upload
+        echo "CONDA_PACKAGE_PATH=$BUILT_PACKAGE" >> $GITHUB_ENV
+
+    - name: Test conda package
+      shell: bash -l {0}
+      run: |
+        # Create test environment and install package
+        conda create -n test-env python=3.11 -y
+        conda activate test-env
+        
+        # Install the built package
+        conda install -c conda-forge -c bioconda "$CONDA_PACKAGE_PATH" -y
+        
+        # Test basic functionality
+        crossroad --help
+        python -c "import crossroad; print('CrossRoad imported successfully')"
+        
+        echo "✅ Package test successful!"
+
+    - name: Upload conda package artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: conda-package-${{ matrix.os }}
+        path: ${{ env.CONDA_PACKAGE_PATH }}
+
+    - name: Upload to Anaconda (on main branch or tags)
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+      env:
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      shell: bash -l {0}
+      run: |
+        echo "🚀 Uploading $CONDA_PACKAGE_PATH to anaconda.org"
+        anaconda -t $ANACONDA_TOKEN upload \
+          --user ${{ env.ANACONDA_USER }} \
+          --force \
+          "$CONDA_PACKAGE_PATH"
+        echo "✅ Upload successful!"
+
+  # Create GitHub release (on tags only)
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-conda
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: CrossRoad ${{ github.ref_name }}
+        body: |
+          ## CrossRoad ${{ github.ref_name }}
+          
+          ### Installation
+          
+          **Via conda (recommended):**
+          ```bash
+          conda install -c ${{ env.ANACONDA_USER }} -c bioconda -c conda-forge ${{ env.PACKAGE_NAME }}
+          ```
+          
+          ### Changes
+          See commit history for detailed changes.
+        draft: false
+        prerelease: false
