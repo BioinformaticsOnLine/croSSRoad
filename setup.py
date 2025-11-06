@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="crossroad-cli",
-    version="0.3.4",
+    version="0.3.5",
     packages=["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"],
     package_dir={"": "."},
     package_data={
@@ -30,6 +30,7 @@ setup(
         "pyarrow", # <-- Add pyarrow here
         "upsetplot", # <-- Add upsetplot here
         "python-dotenv",  # <-- Add this
+        "kaleido==0.2.1",  # <-- Add kaleido here
 
     ],
     entry_points={  # updated to use Typer app entry point

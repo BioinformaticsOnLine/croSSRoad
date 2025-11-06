@@ -1,5 +1,5 @@
 {% set name = "crossroad" %}
-{% set version = "0.3.4" %}
+{% set version = "0.3.5" %}
 {% set python_min = "3.9" %} # Updated Python requirement
 
 package:
@@ -7,7 +7,7 @@ package:
   version: {{ version }}
 
 source:
-  url: https://files.pythonhosted.org/packages/1e/2e/48c69abc1e3a72a73b7f29a823a602278449fe88221211bb169d63d9f3cf/crossroad_cli-0.3.4-py3-none-any.whl
+  url: /Users/pranjalpruthi/Documents/GitHub/crossroad/dist/crossroad_cli-0.3.5-py3-none-any.whl
   sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d  # This is the SHA256 of the wheel file
 
 build:
@@ -38,6 +38,7 @@ requirements:
     - pydantic
     - requests
     - plotly
+    - python-kaleido >=0.1.0,<0.3 # <-- Add kaleido here
     - pyarrow # <-- Add pyarrow here
     - bioconda::seqkit
     - bioconda::seqtk

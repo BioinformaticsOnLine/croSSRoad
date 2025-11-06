@@ -17,7 +17,7 @@ from crossroad import config
 # --- End Centralized Config ---
 
 # --- Version ---
-__version__ = "0.3.4" # Define the version here
+__version__ = "0.3.5" # Define the version here
 
 # Typer and Rich-related imports
 import typer

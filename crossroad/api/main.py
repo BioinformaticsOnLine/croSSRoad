@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data with job queuing and Slurm support",
-    version="0.3.4", # Version bump
+    version="0.3.5", # Version bump
     lifespan=lifespan # Add lifespan manager
 )
 
