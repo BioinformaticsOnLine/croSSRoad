@@ -1,7 +1,7 @@
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 ![Made with love in India](https://madewithlove.now.sh/in?heart=true&colorA=%23f65931&colorB=%23358a24&template=for-the-badge)
-[![Anaconda-Server Badge](https://anaconda.org/jitendralab/crossroad/badges/version.svg)](https://anaconda.org/jitendralab/crossroad)
+[![Conda](https://img.shields.io/conda/vn/jitendralab/crossroad?color=green&label=anaconda%20package&logo=anaconda&style=for-the-badge)](https://anaconda.org/jitendralab/crossroad)
 # Crossroad *fast*API and CLI 
 
 A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic data,
