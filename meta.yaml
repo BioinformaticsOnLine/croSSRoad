@@ -1,5 +1,5 @@
 {% set name = "crossroad" %}
-{% set version = "0.3.5" %}
+{% set version = "0.3.6" %}
 {% set python_min = "3.9" %} # Updated Python requirement
 
 package:
@@ -7,7 +7,7 @@ package:
   version: {{ version }}
 
 source:
-  url: /Users/pranjalpruthi/Documents/GitHub/crossroad/dist/crossroad_cli-0.3.5-py3-none-any.whl
+  url: /Users/pranjalpruthi/Documents/GitHub/crossroad/dist/crossroad_cli-0.3.6-py3-none-any.whl
   sha256: 1c14821b27eae2c6f5e23d314d7974c9dcbee95500f8e814bc38009693aa411d  # This is the SHA256 of the wheel file
 
 build:

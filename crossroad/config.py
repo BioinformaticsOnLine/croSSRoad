@@ -50,15 +50,41 @@ except ValueError:
     print("Warning: Invalid value for CROSSROAD_SLURM_MAX_CPUS. Using default of 40.")
     SLURM_MAX_CPUS_PER_TASK = 40
 
+# Default number of nodes for Slurm jobs.
+# Can be overridden by the 'CROSSROAD_SLURM_NODES' environment variable.
+try:
+    SLURM_NODES = int(os.getenv("CROSSROAD_SLURM_NODES", "1"))
+except ValueError:
+    print("Warning: Invalid value for CROSSROAD_SLURM_NODES. Using default of 1.")
+    SLURM_NODES = 1
+
+# Default ntasks-per-node for Slurm jobs.
+# Can be overridden by the 'CROSSROAD_SLURM_NTASKS_PER_NODE' environment variable.
+try:
+    SLURM_NTASKS_PER_NODE = int(os.getenv("CROSSROAD_SLURM_NTASKS_PER_NODE", "1"))
+except ValueError:
+    print("Warning: Invalid value for CROSSROAD_SLURM_NTASKS_PER_NODE. Using default of 1.")
+    SLURM_NTASKS_PER_NODE = 1
+
 # Name of the Conda environment to activate for Slurm jobs.
 # If left empty or None, no conda activation command will be added.
 # Can be overridden by the 'CROSSROAD_SLURM_CONDA_ENV' environment variable.
 SLURM_CONDA_ENV = os.getenv("CROSSROAD_SLURM_CONDA_ENV", None)
 
-# Memory allocation for Slurm jobs (e.g., "300GB", "4G").
+# memory allocation for Slurm jobs (e.g., "300GB", "4G").
 # If left empty or None, the --mem flag will not be added to the sbatch script.
 # Can be overridden by the 'CROSSROAD_SLURM_MEMORY' environment variable.
 SLURM_MEMORY = os.getenv("CROSSROAD_SLURM_MEMORY", None)
+
+# Default QOS for Slurm jobs.
+# If left empty or None, the --qos flag will not be added to the sbatch script.
+# Can be overridden by the 'CROSSROAD_SLURM_QOS' environment variable.
+SLURM_QOS = os.getenv("CROSSROAD_SLURM_QOS", None)
+
+# Default Account for Slurm jobs.
+# If left empty or None, the --account flag will not be added to the sbatch script.
+# Can be overridden by the 'CROSSROAD_SLURM_ACCOUNT' environment variable.
+SLURM_ACCOUNT = os.getenv("CROSSROAD_SLURM_ACCOUNT", None)
 
 # Absolute path to the Python executable to be used in Slurm jobs.
 # If provided, this will be used instead of relying on `conda activate`.

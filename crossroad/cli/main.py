@@ -17,7 +17,7 @@ from crossroad import config
 # --- End Centralized Config ---
 
 # --- Version ---
-__version__ = "0.3.5" # Define the version here
+__version__ = "0.3.6" # Define the version here
 
 # Typer and Rich-related imports
 import typer
@@ -335,11 +335,11 @@ def main(
     )] = False,
 
     # --- PERF Parameters Group (No short flags defined here) ---
-    mono: Annotated[int, typer.Option("--mono", help="Mononucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 10,
+    mono: Annotated[int, typer.Option("--mono", help="Mononucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 12,
     di: Annotated[int, typer.Option("--di", help="Dinucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 6,
     tri: Annotated[int, typer.Option("--tri", help="Trinucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 4,
     tetra: Annotated[int, typer.Option("--tetra", help="Tetranucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 3,
-    penta: Annotated[int, typer.Option("--penta", help="Pentanucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 2,
+    penta: Annotated[int, typer.Option("--penta", help="Pentanucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 3,
     hexa: Annotated[int, typer.Option("--hexa", help="Hexanucleotide repeat threshold.", rich_help_panel="PERF SSR Detection Parameters")] = 2,
 
     # --- Filtering Parameters Group ---

@@ -80,10 +80,12 @@ class SlurmManager:
         #SBATCH --error={slurm_log_path}
         #SBATCH --partition={config.SLURM_PARTITION}
         #SBATCH --time={config.SLURM_TIME_LIMIT}
-        #SBATCH --nodes=1
-        #SBATCH --ntasks-per-node=1
+        #SBATCH --nodes={config.SLURM_NODES}
+        #SBATCH --ntasks-per-node={config.SLURM_NTASKS_PER_NODE}
         #SBATCH --cpus-per-task={cpus_to_request}
         {f"#SBATCH --mem={config.SLURM_MEMORY}" if config.SLURM_MEMORY else ""}
+        {f"#SBATCH --qos={config.SLURM_QOS}" if config.SLURM_QOS else ""}
+        {f"#SBATCH --account={config.SLURM_ACCOUNT}" if config.SLURM_ACCOUNT else ""}
 
         echo "Starting CrossRoad Slurm job..."
         echo "Job ID: {self.job_id}"

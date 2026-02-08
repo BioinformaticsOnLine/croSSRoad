@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CrossRoad Analysis Pipeline",
     description="API for analyzing SSRs in genomic data with job queuing and Slurm support",
-    version="0.3.5", # Version bump
+    version="0.3.6", # Version bump
     lifespan=lifespan # Add lifespan manager
 )
 
@@ -226,11 +226,11 @@ async def load_persistent_statuses():
 
 # --- Performance Parameters Model ---
 class PerfParams(BaseModel):
-    mono: int = 10
+    mono: int = 12
     di: int = 6
     tri: int = 4
     tetra: int = 3
-    penta: int = 2
+    penta: int = 3
     hexa: int = 2
     minLen: int = 1000
     maxLen: int = 10000000

@@ -1,37 +1,27 @@
-context:
-  name: crossroad
-  version: 0.3.5
-  python_min: '3.9' # Updated Python requirement
-
 package:
-  name: '{{ name|lower }}'
-  version: '{{ version }}'
+  name: crossroad
+  version: "0.3.6"
 
 source:
-  path: dist/crossroad_cli-{{ version }}-py3-none-any.whl
-  sha256: 9a0c90daec49b7c660d879969029cc32afa6c2492e649cc7ceca380d001ba52c
+  path: .
 
 build:
   noarch: python
   number: 0
-  script: |
-    pip install --no-deps --ignore-installed --no-cache-dir crossroad_cli-{{ version }}-py3-none-any.whl
+  script: python -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv
   entry_points:
     - crossroad = crossroad.cli.main:app
   preserve_egg_dir: false
 
 requirements:
   host:
-    - 'python {{ python_min }}'
+    - python
     - pip
     - setuptools
-    - numpy # Keep numpy here for build host
-    - pandas
-    - plotly
 
   run:
-    - python {{ python_min }}.* # Pin Python version
-    - numpy # Keep numpy here for runtime
+    - python
+    - numpy 
     - fastapi
     - uvicorn
     - python-multipart
@@ -39,35 +29,27 @@ requirements:
     - pydantic
     - requests
     - plotly
-    - python-kaleido >=0.1.0,<0.3 # <-- Add kaleido here
-    - pyarrow # <-- Add pyarrow here
+    - python-kaleido >=0.1.0,<0.3 
+    - pyarrow 
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools
     - jitendralab::perf_ssr
     - jitendralab::plotly-upset-hd
-    - rich # Added rich for TUI/logging
+    - rich 
     - rich-argparse
-    - typer        # Typer CLI framework (replaced typer[all] with plain typer)
-    - rich-click >=1.7.0 # Rich-enhanced Click help (Updated version)
-    - argcomplete       # Shell tab-completion
-    - upsetplot # <-- Add upsetplot here
+    - typer        
+    - rich-click >=1.7.0 
+    - argcomplete       
+    - upsetplot 
     - python-dotenv
-
 
 test:
   imports:
     - crossroad
-    - crossroad.cli
-    - crossroad.api
-    - crossroad.core
-    - crossroad.core.plots
-    - plotly
-    - plotly_upset
   commands:
     - crossroad --help
   requires:
-    - python {{ python_min }}.* # Pin Python version for tests
     - bioconda::seqkit
     - bioconda::seqtk
     - bioconda::bedtools

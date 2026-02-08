@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crossroad-cli"
-version = "0.3.5"
+version = "0.3.6"
 description = "A tool for analyzing SSRs in genomic data"
 readme = "README.md"
 authors = [
@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.scripts]
-crossroad = "crossroad.cli.typer_main:app"
+crossroad = "crossroad.cli.main:app"
 
 [tool.setuptools]
 packages = ["crossroad", "crossroad.cli", "crossroad.api", "crossroad.core"]
