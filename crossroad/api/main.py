@@ -169,6 +169,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"], # Allows all methods
     allow_headers=["*"], # Allows all headers
+    # Custom headers are hidden from JS `fetch` by default unless explicitly exposed here.
+    expose_headers=[
+        "X-Data-Truncated",
+        "X-Data-File-Size-Bytes",
+        "X-Data-Total-Rows",
+        "X-Data-Preview-Rows",
+    ],
 )
 
 async def load_persistent_statuses():
@@ -433,6 +440,21 @@ def run_analysis_pipeline(
         logger.error(f"Pipeline execution failed for job {job_id}: {pipeline_error}", exc_info=True)
         # Update status to FAILED - the wrapper will catch this exception
         raise pipeline_error # Re-raise to be caught by the wrapper
+
+
+# --- Helper to quickly count lines in a (possibly huge) file without full parsing ---
+def count_lines_fast(path: Path) -> int:
+    """Counts newline characters by streaming raw bytes, avoiding a full pandas parse.
+    Fast enough to run against multi-GB files (a few seconds) to report an accurate
+    total-row estimate for truncated previews."""
+    count = 0
+    with open(path, "rb") as f:
+        buf_size = 8 * 1024 * 1024
+        buf = f.read(buf_size)
+        while buf:
+            count += buf.count(b"\n")
+            buf = f.read(buf_size)
+    return count
 
 
 # --- Helper to convert DataFrame to Arrow Bytes ---
@@ -716,6 +738,28 @@ async def get_plot_data(job_id: str, plot_key: str):
         logger.error(f"Required data file(s) not found for plot_key '{plot_key}' in job {job_id}. Checked: {possible_paths}")
         raise HTTPException(status_code=404, detail=f"Data for plot '{plot_key}' not found.")
 
+    # --- Guard against huge files (e.g. lowering PERF thresholds can produce multi-GB
+    # SSR tables). Loading these whole into memory and shipping them as one Arrow
+    # response can hang the server and crash the browser tab trying to render millions
+    # of rows. Above the configured size, cap rows read and flag the response as
+    # truncated so the frontend can show a preview banner + link to the full download.
+    file_size_bytes = file_path.stat().st_size
+    is_truncated = file_size_bytes > config.MAX_PREVIEW_FILE_BYTES
+    total_rows: Optional[int] = None
+
+    if is_truncated:
+        logger.warning(
+            f"Data file {file_path} for plot '{plot_key}' (job {job_id}) is {file_size_bytes} bytes, "
+            f"exceeding the {config.MAX_PREVIEW_FILE_BYTES} byte preview limit. Truncating to "
+            f"{config.PREVIEW_ROW_LIMIT} rows."
+        )
+        read_kwargs['nrows'] = config.PREVIEW_ROW_LIMIT
+        try:
+            total_rows = await asyncio.to_thread(count_lines_fast, file_path)
+            total_rows = max(total_rows - 1, 0)  # Exclude header line
+        except Exception as e:
+            logger.warning(f"Could not compute total row count for {file_path}: {e}")
+
     # --- Read file and convert to Arrow ---
     try:
         df = await asyncio.to_thread(read_func, file_path, **read_kwargs)
@@ -726,9 +770,18 @@ async def get_plot_data(job_id: str, plot_key: str):
         arrow_bytes = await asyncio.to_thread(dataframe_to_arrow_bytes, df)
         logger.info(f"Successfully converted data for plot '{plot_key}' to Arrow format ({len(arrow_bytes)} bytes).")
 
+        headers = {}
+        if is_truncated:
+            headers["X-Data-Truncated"] = "true"
+            headers["X-Data-File-Size-Bytes"] = str(file_size_bytes)
+            headers["X-Data-Preview-Rows"] = str(len(df))
+            if total_rows is not None:
+                headers["X-Data-Total-Rows"] = str(total_rows)
+
         return Response(
             content=arrow_bytes,
-            media_type="application/vnd.apache.arrow.stream"
+            media_type="application/vnd.apache.arrow.stream",
+            headers=headers,
         )
     except FileNotFoundError:
          logger.error(f"File disappeared before read for plot '{plot_key}': {file_path}")

@@ -33,6 +33,28 @@ except ValueError:
     print("Warning: Invalid value for CROSSROAD_MAX_JOBS. Using default of 2.")
     MAX_CONCURRENT_JOBS = 2
 
+# --- Plot Data Preview Limits ---
+# Result files (e.g. ssr_genecombo.tsv) can grow to several GB when PERF thresholds
+# are lowered, since far more SSRs match. Loading such files whole into memory and
+# serializing them entirely to Arrow for a single HTTP response can hang the server
+# and crash the browser tab trying to render millions of rows. Above this size, the
+# API returns a row-capped preview instead of the full file, with headers describing
+# the truncation so the frontend can inform the user and link to the full download.
+# Can be overridden by the 'CROSSROAD_MAX_PREVIEW_BYTES' environment variable.
+try:
+    MAX_PREVIEW_FILE_BYTES = int(os.getenv("CROSSROAD_MAX_PREVIEW_BYTES", str(100 * 1024 * 1024)))  # 100 MB
+except ValueError:
+    print("Warning: Invalid value for CROSSROAD_MAX_PREVIEW_BYTES. Using default of 100MB.")
+    MAX_PREVIEW_FILE_BYTES = 100 * 1024 * 1024
+
+# Maximum number of rows to include in a truncated preview.
+# Can be overridden by the 'CROSSROAD_PREVIEW_ROW_LIMIT' environment variable.
+try:
+    PREVIEW_ROW_LIMIT = int(os.getenv("CROSSROAD_PREVIEW_ROW_LIMIT", "100000"))
+except ValueError:
+    print("Warning: Invalid value for CROSSROAD_PREVIEW_ROW_LIMIT. Using default of 100000.")
+    PREVIEW_ROW_LIMIT = 100000
+
 # --- Slurm Configuration (for 'slurm' mode) ---
 # Default Slurm partition to use for job submission.
 # Can be overridden by the 'CROSSROAD_SLURM_PARTITION' environment variable.

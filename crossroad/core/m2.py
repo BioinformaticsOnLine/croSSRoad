@@ -139,41 +139,54 @@ def write_perf_params(mono, di, tri, tetra, penta, hexa, out_params):
 
 
 def reformat_perf(perf_out, reformatted):
-    df = pd.read_csv(perf_out, sep="\t", header=None, dtype=str)
-    if df.shape[1] < 8:
-        raise ValueError("PERF output has fewer than 8 columns")
-    df.columns = [f"col{i}" for i in range(1, df.shape[1] + 1)]
+    # PERF emits a variable number of columns: 7 when the actual repeat equals
+    # the repeat class, and 8 when it appends the actual repeat unit as the last
+    # column. Letting pandas infer the width makes the C parser lock onto the
+    # first row's field count and then fail ("Expected 7 fields, saw 8"), so we
+    # pin an 8-column layout; short rows get NaN in col8. The file can be
+    # multiple GB with tens of millions of rows, so we stream it in chunks and
+    # use vectorised ops instead of a per-row apply.
+    col_names = [f"col{i}" for i in range(1, 9)]
+    reader = pd.read_csv(
+        perf_out,
+        sep="\t",
+        header=None,
+        dtype=str,
+        names=col_names,
+        engine="c",
+        chunksize=1_000_000,
+    )
 
-    def calc_row(row):
-        motif = row["col8"]
-        repeat = row["col7"]
-        motif_len = len(motif)
-        gc_count = motif.upper().count("G") + motif.upper().count("C")
-        gc_per = round(gc_count / motif_len * 100, 1)
-        at_per = round(100 - gc_per, 1)
-        loci = f"({motif}){repeat}"
-        try:
-            rep = int(repeat)
-        except:
-            rep = 0
-        length_ssr = rep * motif_len
-        return pd.Series(
-            {
-                "genomeID": row["col1"],
-                "start": row["col2"],
-                "stop": row["col3"],
-                "repeat": row["col7"],
-                "motif": motif,
-                "GC_per": gc_per,
-                "AT_per": at_per,
-                "length_of_motif": motif_len,
-                "loci": loci,
-                "length_of_ssr": length_ssr,
-            }
-        )
+    header_written = False
+    with open(reformatted, "w", newline="") as fout:
+        for chunk in reader:
+            # Prefer the actual repeat unit (col8); fall back to the repeat
+            # class (col4) for 7-field rows where col8 is absent.
+            motif = chunk["col8"].fillna(chunk["col4"])
+            repeat = chunk["col7"].fillna("0")
+            motif_upper = motif.str.upper()
+            motif_len = motif.str.len()
+            gc_count = motif_upper.str.count("G") + motif_upper.str.count("C")
+            gc_per = (gc_count / motif_len * 100).round(1)
+            at_per = (100 - gc_per).round(1)
+            rep = pd.to_numeric(repeat, errors="coerce").fillna(0).astype(int)
 
-    reform_df = df.apply(calc_row, axis=1)
-    reform_df.to_csv(reformatted, sep="\t", index=False)
+            out = pd.DataFrame(
+                {
+                    "genomeID": chunk["col1"],
+                    "start": chunk["col2"],
+                    "stop": chunk["col3"],
+                    "repeat": repeat,
+                    "motif": motif,
+                    "GC_per": gc_per,
+                    "AT_per": at_per,
+                    "length_of_motif": motif_len,
+                    "loci": "(" + motif + ")" + repeat.astype(str),
+                    "length_of_ssr": rep * motif_len,
+                }
+            )
+            out.to_csv(fout, sep="\t", index=False, header=not header_written)
+            header_written = True
 
 
 def merge_categories(ssr_file, cat_file, stats_file, out_file):
@@ -210,12 +223,12 @@ def merge_categories(ssr_file, cat_file, stats_file, out_file):
     if len(cat_df.columns) >= 3:
         dynamic_col_name = cat_df.columns[2]
         if dynamic_col_name in merged.columns:
-            merged[dynamic_col_name].fillna('undefined', inplace=True)
+            merged[dynamic_col_name] = merged[dynamic_col_name].fillna('undefined')
 
     if 'category' in merged.columns:
-        merged['category'].fillna('undefined', inplace=True)
+        merged['category'] = merged['category'].fillna('undefined')
     if 'year' in merged.columns:
-        merged['year'].fillna('undefined', inplace=True)
+        merged['year'] = merged['year'].fillna('undefined')
     
     # Write to file with controlled formatting
     merged.to_csv(out_file, sep="\t", index=False, na_rep='undefined')
