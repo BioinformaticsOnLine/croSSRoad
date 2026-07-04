@@ -842,6 +842,103 @@ async def download_results_zip(job_id: str):
     )
 
 
+# --- Individual result file listing & direct download (avoids zipping huge folders) ---
+# Human-friendly labels + ordering for the known result files.
+RESULT_FILE_LABELS: Dict[str, str] = {
+    "main/mergedOut.tsv": "Core SSR Data (mergedOut.tsv)",
+    "main/hssr_data.csv": "HSSR Data (hssr_data.csv)",
+    "main/ssr_genecombo.tsv": "SSR-Gene Intersection (ssr_genecombo.tsv)",
+    "main/mutational_hotspot.csv": "Mutational Hotspots (mutational_hotspot.csv)",
+    "main/flanks/flanked.tsv": "Flanking Data (flanked.tsv)",
+    "main/flanks/pattern_summary.csv": "Flank Pattern Summary (pattern_summary.csv)",
+}
+
+
+@app.get("/api/job/{job_id}/files")
+async def list_job_files(job_id: str):
+    """Lists downloadable result files (relative to output/) with sizes.
+
+    Lets the frontend offer direct per-file downloads and size-aware messaging
+    instead of forcing a full-folder zip, which is extremely slow for multi-GB jobs.
+    """
+    logger = logging.getLogger()
+
+    async with queue_lock:
+        status_info = job_statuses.get(job_id)
+    if not status_info:
+        status_file = config.JOB_OUTPUT_DIR / job_id / "status.json"
+        if status_file.exists():
+            with open(status_file, 'r') as f:
+                status_info = json.load(f)
+        else:
+            raise HTTPException(status_code=404, detail=f"Job ID {job_id} not found.")
+
+    current_status = status_info.get("status")
+    current_status = current_status.value if isinstance(current_status, JobStatus) else current_status
+    if current_status != JobStatus.COMPLETED.value:
+        raise HTTPException(status_code=409, detail=f"Job {job_id} is not complete. Current status: {current_status}")
+
+    output_dir = config.JOB_OUTPUT_DIR / job_id / "output"
+    if not output_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Results directory not found for job ID {job_id}")
+
+    files: List[Dict[str, Any]] = []
+    for path in sorted(output_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        rel_path = path.relative_to(output_dir).as_posix()
+        size_bytes = path.stat().st_size
+        files.append({
+            "relative_path": rel_path,
+            "name": path.name,
+            "label": RESULT_FILE_LABELS.get(rel_path, path.name),
+            "size_bytes": size_bytes,
+            "download_url": f"/api/job/{job_id}/download/{rel_path}",
+            "is_primary": rel_path in RESULT_FILE_LABELS,
+        })
+
+    # Primary/known files first (in the defined order), then the rest alphabetically.
+    order = list(RESULT_FILE_LABELS.keys())
+    files.sort(key=lambda f: (order.index(f["relative_path"]) if f["relative_path"] in order else len(order), f["relative_path"]))
+
+    logger.info(f"Listed {len(files)} result files for job {job_id}.")
+    return JSONResponse(content={"job_id": job_id, "files": files})
+
+
+@app.get("/api/job/{job_id}/download/{file_path:path}")
+async def download_job_file(job_id: str, file_path: str):
+    """Streams a single result file directly (no zipping).
+
+    Guards against path traversal by resolving the requested path and confirming
+    it stays inside the job's output directory.
+    """
+    logger = logging.getLogger()
+
+    output_dir = (config.JOB_OUTPUT_DIR / job_id / "output").resolve()
+    if not output_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Results directory not found for job ID {job_id}")
+
+    try:
+        target = (output_dir / file_path).resolve()
+    except (OSError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid file path.")
+
+    # Prevent path traversal (e.g. ../../etc/passwd)
+    if output_dir != target and output_dir not in target.parents:
+        logger.warning(f"Blocked path traversal attempt for job {job_id}: {file_path}")
+        raise HTTPException(status_code=403, detail="Access to the requested path is not allowed.")
+
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail=f"File '{file_path}' not found for job {job_id}.")
+
+    logger.info(f"Serving direct download for job {job_id}: {file_path} ({target.stat().st_size} bytes)")
+    return FileResponse(
+        path=target,
+        media_type="application/octet-stream",
+        filename=target.name,
+    )
+
+
 @app.get("/api/job/{job_id}/logs")
 async def get_job_logs(job_id: str):
     """Serve the per-job log file as plain text."""
