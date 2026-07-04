@@ -221,6 +221,8 @@ Supports direct analysis, Slurm job submission, and running as a web API.
 [bold green]Citation:[/] If you use croSSRoad in your research, please cite:
   cro[bold yellow]SSR[/]oad: a tool to cross-compare SSRs across species and families
 
+[bold blue]Installation:[/] mamba install -c jitendralab -c bioconda -c conda-forge crossroad -y
+
 [bold blue]Documentation:[/] https://github.com/BioinformaticsOnLine/croSSRoad
 """
 )

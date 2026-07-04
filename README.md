@@ -6,6 +6,12 @@
 
 A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic data,
 
+## Workflow
+
+End-to-end pipeline from genome input through SSR detection, gene intersection, hotspot analysis, and visualization.
+
+![croSSRoad analysis workflow](workflow.webp)
+
 ## Features
 
 - SSR comparative analysis of genomic data
@@ -19,7 +25,22 @@ A comprehensive tool for analyzing Simple Sequence Repeats (SSRs) in genomic dat
 
 ## Installation
 
-### Using pip
+Install from the [jitendralab Anaconda channel](https://anaconda.org/jitendralab/crossroad) using **mamba** (recommended) or **conda**:
+
+```bash
+mamba install -c jitendralab -c bioconda -c conda-forge crossroad -y
+```
+
+Requires Python 3.8+ in an active conda/mamba environment.
+
+### Quick start
+
+```bash
+crossroad --help
+crossroad -i input_dir -ref REF_ID -p
+```
+
+For the full user manual, see `Manual_of_croSSRoad.pdf` in this repository.
 
 ## Contributors
 
